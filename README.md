@@ -62,7 +62,7 @@ A complete, production-ready Jenkins CI/CD platform deployed on Amazon EKS with 
 
 **Note:** Do not commit binary tools (.exe, .zip, .jar) to git. Install them locally using package managers (chocolatey, brew, apt, etc.)
 
-### Deploy in 10 Steps (~90 minutes)
+### Deploy in 11 Steps (~90 minutes)
 
 ```bash
 # 1. Install dependencies
@@ -105,39 +105,49 @@ kubectl port-forward -n jenkins svc/jenkins 8080:8080
 
 Open http://localhost:8080 and complete Jenkins setup.
 
-### Configure GitHub Webhook (Required for CI/CD)
+### Step 11: Configure GitHub Webhook (Required for CI/CD)
 
-After Jenkins is deployed, set up the GitHub webhook for instant build triggers:
+**When**: After Jenkins is deployed and accessible via ALB (step 10 complete)
+
+**Why**: Enables instant build triggers when you push code to GitHub
+
+**Setup**:
 
 ```bash
-# 1. Retrieve webhook secret (created automatically by CDK)
-aws secretsmanager get-secret-value \
+# 1. Retrieve webhook secret (automatically created by CDK in step 3)
+SECRET=$(aws secretsmanager get-secret-value \
   --secret-id jenkins/github-webhook-secret \
   --region us-west-2 \
   --query SecretString \
-  --output text | jq -r .secret
+  --output text | jq -r .secret)
+
+echo "Your webhook secret: $SECRET"
+# Copy this secret - you'll paste it into GitHub in step 4
 
 # 2. Get Jenkins ALB URL
-kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+ALB_URL=$(kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "Your Jenkins URL: http://$ALB_URL"
 
-# 3. Go to GitHub repo settings
-# https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses/settings/hooks
+# 3. Open GitHub webhook settings in your browser:
+echo "Go to: https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses/settings/hooks"
 
-# 4. Add webhook:
-# - Payload URL: http://<ALB_URL>/github-webhook/
+# 4. Click "Add webhook" and configure:
+# - Payload URL: http://$ALB_URL/github-webhook/
 # - Content type: application/json
-# - Secret: Paste the secret from step 1
-# - Events: Just the push event
-# - Active: ✓ Checked
+# - Secret: Paste the secret from step 1 above
+# - Events: Select "Just the push event"
+# - Active: ✓ Check this box
+# - Click "Add webhook"
 
-# 5. Configure Jenkins to validate the secret (see webhook guide)
-
-# 6. Test by pushing code - builds trigger instantly!
+# 5. Verify webhook is working:
+# - Make a test commit and push
+# - Check GitHub webhook "Recent Deliveries" for green checkmark
+# - Check Jenkins for triggered build
 ```
 
-**Important**: The webhook secret is automatically created by CDK during deployment.
+**Result**: Builds trigger instantly when you push code (no 5-minute polling delay)
 
-**Detailed guide**: [docs/guides/WEBHOOK_QUICK_START.md](docs/guides/WEBHOOK_QUICK_START.md)
+**Troubleshooting**: See [docs/guides/GITHUB_WEBHOOK_SETUP.md](docs/guides/GITHUB_WEBHOOK_SETUP.md) for detailed setup and troubleshooting
 
 See [QUICK_START.md](QUICK_START.md) for detailed instructions.
 
