@@ -45,6 +45,14 @@ How-to guides for specific features and workflows:
 - **[QUICK_REFERENCE.md](guides/QUICK_REFERENCE.md)** - Common commands reference
 - **[WORKFLOW_SUMMARY.md](guides/WORKFLOW_SUMMARY.md)** - Development workflow overview
 
+#### Jenkins & CI/CD
+- **[WEBHOOK_QUICK_START.md](guides/WEBHOOK_QUICK_START.md)** - GitHub webhook setup (5 minutes)
+- **[GITHUB_WEBHOOK_SETUP.md](guides/GITHUB_WEBHOOK_SETUP.md)** - Comprehensive webhook guide
+- **[JENKINS_AUTOMATED_CONFIG.md](guides/JENKINS_AUTOMATED_CONFIG.md)** - Jenkins automated configuration
+- **[JENKINS_GIT_INTEGRATION.md](guides/JENKINS_GIT_INTEGRATION.md)** - Jenkins git integration
+- **[JENKINS_JOBS_AS_CODE.md](guides/JENKINS_JOBS_AS_CODE.md)** - Jenkins Configuration as Code
+- **[JENKINS_TO_APP_CLUSTER_CONNECTIVITY.md](guides/JENKINS_TO_APP_CLUSTER_CONNECTIVITY.md)** - Cross-cluster connectivity
+
 #### OpenAPI-Driven Development
 - **[AUTOMATED_OPENAPI_WORKFLOW.md](guides/AUTOMATED_OPENAPI_WORKFLOW.md)** - Automated workflow with Kiro hooks
 - **[CODE_GENERATION_FROM_OPENAPI.md](guides/CODE_GENERATION_FROM_OPENAPI.md)** - Code generation guide
@@ -52,9 +60,7 @@ How-to guides for specific features and workflows:
 
 #### Infrastructure & Deployment
 - **[NGINX_API_DEPLOYMENT_GUIDE.md](guides/NGINX_API_DEPLOYMENT_GUIDE.md)** - nginx-api deployment
-- **[JENKINS_JOBS_AS_CODE.md](guides/JENKINS_JOBS_AS_CODE.md)** - Jenkins Configuration as Code
 - **[EKS_VERSION_STANDARD.md](guides/EKS_VERSION_STANDARD.md)** - EKS version standardization
-- **[JENKINS_TO_APP_CLUSTER_CONNECTIVITY.md](guides/JENKINS_TO_APP_CLUSTER_CONNECTIVITY.md)** - Cross-cluster connectivity
 
 #### Security & Authentication
 - **[COGNITO_AUTHENTICATION_GUIDE.md](guides/COGNITO_AUTHENTICATION_GUIDE.md)** - Complete authentication guide
@@ -73,8 +79,9 @@ How-to guides for specific features and workflows:
 
 **DevOps Engineer / Infrastructure**:
 1. Start with [DEPLOYMENT_GUIDE.md](deployment/DEPLOYMENT_GUIDE.md)
-2. Review [INFRASTRUCTURE_VALIDATION.md](deployment/INFRASTRUCTURE_VALIDATION.md)
-3. Check [RECOVERY_PROCEDURES.md](guides/RECOVERY_PROCEDURES.md)
+2. Set up [WEBHOOK_QUICK_START.md](guides/WEBHOOK_QUICK_START.md)
+3. Review [INFRASTRUCTURE_VALIDATION.md](deployment/INFRASTRUCTURE_VALIDATION.md)
+4. Check [RECOVERY_PROCEDURES.md](guides/RECOVERY_PROCEDURES.md)
 
 **Application Developer**:
 1. Start with [QUICK_START.md](guides/QUICK_START.md)

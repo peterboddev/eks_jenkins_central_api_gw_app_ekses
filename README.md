@@ -105,6 +105,28 @@ kubectl port-forward -n jenkins svc/jenkins 8080:8080
 
 Open http://localhost:8080 and complete Jenkins setup.
 
+### Configure GitHub Webhook (Required for CI/CD)
+
+After Jenkins is deployed, set up the GitHub webhook for instant build triggers:
+
+```bash
+# 1. Get Jenkins ALB URL
+kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# 2. Go to GitHub repo settings
+# https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses/settings/hooks
+
+# 3. Add webhook:
+# - Payload URL: http://<ALB_URL>/github-webhook/
+# - Content type: application/json
+# - Events: Just the push event
+# - Active: ✓ Checked
+
+# 4. Test by pushing code - builds trigger instantly!
+```
+
+**Detailed guide**: [docs/guides/WEBHOOK_QUICK_START.md](docs/guides/WEBHOOK_QUICK_START.md)
+
 See [QUICK_START.md](QUICK_START.md) for detailed instructions.
 
 ## 📚 Documentation
@@ -121,6 +143,10 @@ See [QUICK_START.md](QUICK_START.md) for detailed instructions.
 - **[docs/deployment/INFRASTRUCTURE_VALIDATION.md](docs/deployment/INFRASTRUCTURE_VALIDATION.md)** - Infrastructure validation report
 
 ### Feature Guides
+- **[docs/guides/WEBHOOK_QUICK_START.md](docs/guides/WEBHOOK_QUICK_START.md)** - GitHub webhook setup (5 minutes)
+- **[docs/guides/GITHUB_WEBHOOK_SETUP.md](docs/guides/GITHUB_WEBHOOK_SETUP.md)** - Comprehensive webhook guide
+- **[docs/guides/JENKINS_AUTOMATED_CONFIG.md](docs/guides/JENKINS_AUTOMATED_CONFIG.md)** - Jenkins automated configuration
+- **[docs/guides/JENKINS_GIT_INTEGRATION.md](docs/guides/JENKINS_GIT_INTEGRATION.md)** - Jenkins git integration
 - **[docs/guides/AUTOMATED_OPENAPI_WORKFLOW.md](docs/guides/AUTOMATED_OPENAPI_WORKFLOW.md)** - OpenAPI-driven development workflow
 - **[docs/guides/CODE_GENERATION_FROM_OPENAPI.md](docs/guides/CODE_GENERATION_FROM_OPENAPI.md)** - Code generation guide
 - **[docs/guides/API_CONTRACT_MANAGEMENT.md](docs/guides/API_CONTRACT_MANAGEMENT.md)** - API contract management
