@@ -61,6 +61,21 @@ http://k8s-jenkins-jenkins-abc123def456-1234567890.us-west-2.elb.amazonaws.com
 
 ## Step 2: Configure GitHub Webhook
 
+### Generate Webhook Secret (Required)
+
+```bash
+# Generate a secure random secret
+openssl rand -hex 32
+```
+
+**Important**: Save this secret securely! You'll need it for both GitHub and Jenkins.
+
+Store it in `access_details/CURRENT_ACCESS.md` (gitignored):
+```markdown
+## GitHub Webhook Secret
+<your-generated-secret-here>
+```
+
 ### In GitHub Repository Settings:
 
 1. Go to your repository: `https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses`
@@ -84,9 +99,9 @@ http://k8s-jenkins-jenkins-abc123def456-1234567890.us-west-2.elb.amazonaws.com
    application/json
    ```
 
-   **Secret:** (optional, leave blank for now)
+   **Secret:** (REQUIRED for security)
    ```
-   (leave empty)
+   <paste your generated secret from above>
    ```
 
    **Which events would you like to trigger this webhook?**
@@ -101,7 +116,86 @@ http://k8s-jenkins-jenkins-abc123def456-1234567890.us-west-2.elb.amazonaws.com
 
 4. Click **Add webhook**
 
-## Step 3: Verify Webhook
+## Step 3: Configure Jenkins to Validate Secret
+
+Jenkins must be configured to validate the webhook secret. Without this, the secret provides no security benefit.
+
+### Option A: Via Jenkins UI (Quick Setup)
+
+1. Go to Jenkins → **Manage Jenkins** → **Configure System**
+2. Scroll to **GitHub** section
+3. Click **Add GitHub Server**
+4. Configure:
+   - **Name**: `github`
+   - **API URL**: `https://api.github.com`
+   - **Credentials**: Click **Add** → **Jenkins**
+     - **Kind**: Secret text
+     - **Secret**: Paste your webhook secret
+     - **ID**: `github-webhook-secret`
+     - **Description**: GitHub webhook secret
+   - Click **Add**
+5. Select the credential you just created
+6. Click **Test connection** to verify
+7. Click **Save**
+
+### Option B: Via JCasC (Recommended for Production)
+
+This approach stores the configuration as code and is more maintainable.
+
+**1. Create Kubernetes Secret:**
+
+```bash
+# Replace <YOUR_SECRET> with your generated secret
+kubectl create secret generic github-webhook-secret \
+  --from-literal=secret=<YOUR_SECRET> \
+  -n jenkins
+```
+
+**2. Update Jenkins ConfigMap:**
+
+Add to `k8s/jenkins/agent-pod-template-configmap.yaml`:
+
+```yaml
+unclassified:
+  githubpluginconfig:
+    configs:
+    - name: "github"
+      apiUrl: "https://api.github.com"
+      credentialsId: "github-webhook-secret"
+      manageHooks: true
+
+credentials:
+  system:
+    domainCredentials:
+    - credentials:
+      - string:
+          id: "github-webhook-secret"
+          secret: "${GITHUB_WEBHOOK_SECRET}"
+          description: "GitHub webhook secret for validating webhook requests"
+```
+
+**3. Mount the secret in StatefulSet:**
+
+Update `k8s/jenkins/statefulset.yaml` to add environment variable:
+
+```yaml
+env:
+- name: GITHUB_WEBHOOK_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: github-webhook-secret
+      key: secret
+```
+
+**4. Apply changes:**
+
+```bash
+kubectl apply -f k8s/jenkins/agent-pod-template-configmap.yaml
+kubectl apply -f k8s/jenkins/statefulset.yaml
+kubectl rollout restart statefulset/jenkins-controller -n jenkins
+```
+
+## Step 4: Verify Webhook
 
 ### Test the Webhook
 
@@ -132,7 +226,7 @@ git push
 - Build starts within seconds
 - No 5-minute wait!
 
-## Step 4: Monitor Webhook Activity
+## Step 5: Monitor Webhook Activity
 
 ### In GitHub
 
@@ -213,26 +307,26 @@ curl -I http://<ALB_URL>/github-webhook/
 
 ## Security Considerations
 
-### Current Setup (Basic)
+### Current Setup (With Secret - Recommended)
 
 - ✅ ALB restricts inbound traffic to GitHub IP ranges
 - ✅ Jenkins behind ALB (not directly exposed)
-- ⚠️ No webhook secret (anyone with URL can trigger builds)
+- ✅ Webhook secret validates requests are from GitHub
+- ✅ Prevents unauthorized build triggers
+- ✅ Production-ready security
 
-### Recommended: Add Webhook Secret
+**How it works:**
+1. GitHub signs each webhook request with your secret using HMAC-SHA256
+2. Signature is sent in `X-Hub-Signature-256` header
+3. Jenkins validates the signature matches
+4. If signature is invalid, request is rejected
 
-1. **Generate a secret:**
-   ```bash
-   openssl rand -hex 32
-   ```
+### Without Secret (NOT Recommended)
 
-2. **Add to GitHub webhook:**
-   - Settings → Webhooks → Edit webhook
-   - Add secret in "Secret" field
-
-3. **Configure Jenkins to validate secret:**
-   - This requires additional Jenkins configuration
-   - See Jenkins GitHub plugin documentation
+- ⚠️ Anyone with Jenkins URL can trigger builds
+- ⚠️ No way to verify requests are from GitHub
+- ⚠️ Potential for abuse and resource exhaustion
+- ❌ Not suitable for production
 
 ### Recommended: Use HTTPS
 
