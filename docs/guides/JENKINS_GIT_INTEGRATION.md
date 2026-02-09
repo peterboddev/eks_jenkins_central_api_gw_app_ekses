@@ -70,20 +70,33 @@ Your Jenkins setup uses **Git SCM polling** to automatically detect and build ch
 
 ### Applying Configuration Changes
 
-After updating `k8s/jenkins/jobs-configmap.yaml`, apply the changes:
+The jobs configuration is **automatically loaded** by Jenkins through Kubernetes ConfigMaps:
 
+**How it works:**
+1. Jobs are defined in `k8s/jenkins/jobs-configmap.yaml`
+2. ConfigMap is mounted into Jenkins pod at `/var/jenkins_home/casc_configs/jobs`
+3. Jenkins Configuration as Code (JCasC) plugin automatically loads it on startup
+4. Jobs are created/updated automatically - no manual steps needed!
+
+**When you update jobs:**
 ```bash
-# Update the ConfigMap
-kubectl apply -f k8s/jenkins/jobs-configmap.yaml
+# Apply the entire Jenkins configuration (includes jobs)
+kubectl apply -k k8s/jenkins/
 
-# Restart Jenkins to reload configuration
-kubectl rollout restart statefulset/jenkins -n jenkins
+# Jenkins will automatically reload the configuration
+# If it doesn't, restart Jenkins:
+kubectl rollout restart statefulset/jenkins-controller -n jenkins
+```
+
+**Initial deployment:**
+```bash
+# Deploy Jenkins with all configurations
+kubectl apply -k k8s/jenkins/
 
 # Wait for Jenkins to be ready
-kubectl rollout status statefulset/jenkins -n jenkins
+kubectl rollout status statefulset/jenkins-controller -n jenkins
 
-# Check Jenkins logs
-kubectl logs -f statefulset/jenkins -n jenkins
+# Jobs will be automatically created on first startup
 ```
 
 ### Manual Trigger

@@ -5,13 +5,14 @@ metadata:
   name: jenkins-controller
   namespace: jenkins
 
-# Resources to deploy
+  # Resources to deploy
 resources:
   - namespace.yaml
   - serviceaccount.yaml
   - rbac.yaml
   - pvc.yaml
   - agent-pod-template-configmap.yaml
+  - jobs-configmap.yaml
   - statefulset.yaml
   - service.yaml
 

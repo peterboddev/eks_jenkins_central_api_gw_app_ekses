@@ -88,6 +88,10 @@ spec:
         - name: jenkins-agent-config
           mountPath: /var/jenkins_home/casc_configs
           readOnly: true
+        # Volume mount for Jenkins jobs configuration
+        - name: jenkins-jobs-config
+          mountPath: /var/jenkins_home/casc_configs/jobs
+          readOnly: true
         
         # Liveness probe to check if Jenkins is running
         livenessProbe:
@@ -115,6 +119,9 @@ spec:
       - name: jenkins-agent-config
         configMap:
           name: jenkins-agent-pod-template
+      - name: jenkins-jobs-config
+        configMap:
+          name: jenkins-casc-jobs
   
   # Volume claim templates for persistent storage
   # This will be created in task 9.3

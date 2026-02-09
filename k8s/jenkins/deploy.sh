@@ -130,11 +130,13 @@ kubectl apply -f namespace.yaml
 kubectl apply -f serviceaccount.yaml
 kubectl apply -f rbac.yaml
 kubectl apply -f agent-pod-template-configmap.yaml
+kubectl apply -f jobs-configmap.yaml
 kubectl apply -f pvc.yaml
 kubectl apply -f service.yaml
 kubectl apply -f statefulset.yaml
 
 print_info "Jenkins controller manifests applied successfully."
+print_info "Jobs configuration will be automatically loaded by Jenkins Configuration as Code (JCasC)."
 
 # Wait for Jenkins controller pod to be ready
 print_info "Waiting for Jenkins controller pod to be ready (this may take a few minutes)..."
