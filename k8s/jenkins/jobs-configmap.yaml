@@ -28,7 +28,7 @@ data:
                     remote {
                       url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                     }
-                    branches('*/master')
+                    branches('*/main')
                   }
                 }
                 scriptPath('jenkins-jobs/nginx-api-build/Jenkinsfile')
@@ -51,7 +51,7 @@ data:
                     remote {
                       url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                     }
-                    branches('*/master')
+                    branches('*/main')
                   }
                 }
                 scriptPath('jenkins-jobs/nginx-docker-build/Jenkinsfile')

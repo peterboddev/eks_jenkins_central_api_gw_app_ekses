@@ -21,7 +21,7 @@ pipelineJob('nginx-api-build') {
                         url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                         credentials('github-credentials')
                     }
-                    branches('*/master')
+                    branches('*/main')
                 }
             }
             scriptPath('jenkins-jobs/nginx-api-build/Jenkinsfile')
@@ -45,7 +45,7 @@ pipelineJob('nginx-docker-build') {
                         url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                         credentials('github-credentials')
                     }
-                    branches('*/master')
+                    branches('*/main')
                 }
             }
             scriptPath('jenkins-jobs/nginx-docker-build/Jenkinsfile')
