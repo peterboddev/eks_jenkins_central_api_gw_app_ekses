@@ -1,0 +1,288 @@
+openapi: 3.0.3
+info:
+  title: nginx-api
+  description: Node.js Express API with nginx reverse proxy
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: https://79jzt0dapd.execute-api.us-west-2.amazonaws.com
+    description: Production (API Gateway with Cognito auth)
+  - url: http://k8s-default-nginxapi-229d97ff9c-1487485550.us-west-2.elb.amazonaws.com
+    description: Direct ALB (no auth - debugging only)
+  - url: http://localhost:8080
+    description: Local development (Docker)
+  - url: http://localhost:3000
+    description: Local development (Node.js only)
+
+security:
+  - CognitoAuth: []
+
+components:
+  securitySchemes:
+    CognitoAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: AWS Cognito JWT token (required for production)
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - uptime
+      properties:
+        status:
+          type: string
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-02-09T10:30:00.000Z"
+        uptime:
+          type: number
+          description: Process uptime in seconds
+          example: 3600.5
+
+    InfoResponse:
+      type: object
+      required:
+        - app
+        - version
+        - cluster
+        - environment
+      properties:
+        app:
+          type: string
+          example: nginx-api
+        version:
+          type: string
+          example: 1.0.0
+        cluster:
+          type: string
+          description: Kubernetes pod hostname
+          example: nginx-api-7d8f9c5b6-abc12
+        environment:
+          type: string
+          example: production
+
+    TestResponse:
+      type: object
+      required:
+        - message
+        - method
+        - uri
+        - timestamp
+        - headers
+      properties:
+        message:
+          type: string
+          example: Test endpoint working
+        method:
+          type: string
+          example: GET
+        uri:
+          type: string
+          example: /api/test
+        timestamp:
+          type: string
+          format: date-time
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+
+    EchoRequest:
+      type: object
+      description: Any JSON object
+      example:
+        message: "Hello, World!"
+        data: [1, 2, 3]
+
+    EchoResponse:
+      type: object
+      required:
+        - received
+        - timestamp
+      properties:
+        received:
+          type: object
+          description: The request body echoed back
+        timestamp:
+          type: string
+          format: date-time
+
+    User:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Alice
+        createdAt:
+          type: string
+          format: date-time
+
+    UserList:
+      type: object
+      required:
+        - users
+      properties:
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+
+    CreateUserRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Charlie
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Not Found
+        path:
+          type: string
+          example: /api/unknown
+        message:
+          type: string
+          example: Additional error details
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the application
+      operationId: getHealth
+      tags:
+        - Health
+      security: []  # No auth required for health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/info:
+    get:
+      summary: Application information
+      description: Returns application metadata and environment details
+      operationId: getInfo
+      tags:
+        - Info
+      responses:
+        '200':
+          description: Application information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
+
+  /api/test:
+    get:
+      summary: Test endpoint
+      description: Returns request details for testing purposes
+      operationId: getTest
+      tags:
+        - Testing
+      responses:
+        '200':
+          description: Test response with request details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestResponse'
+
+  /api/echo:
+    post:
+      summary: Echo endpoint
+      description: Returns the request body back to the caller
+      operationId: postEcho
+      tags:
+        - Testing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EchoRequest'
+      responses:
+        '200':
+          description: Request body echoed back
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EchoResponse'
+
+  /api/users:
+    get:
+      summary: List users
+      description: Returns a list of users (example endpoint for developers)
+      operationId: getUsers
+      tags:
+        - Users
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+
+    post:
+      summary: Create user
+      description: Creates a new user (example endpoint for developers)
+      operationId: createUser
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Info
+    description: Application information
+  - name: Testing
+    description: Testing and debugging endpoints
+  - name: Users
+    description: User management (example endpoints)

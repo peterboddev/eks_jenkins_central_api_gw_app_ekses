@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: jenkins-controller
+  namespace: jenkins
+  labels:
+    app: jenkins-controller
+    component: controller
+spec:
+  serviceName: jenkins
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins-controller
+  template:
+    metadata:
+      labels:
+        app: jenkins-controller
+        component: controller
+    spec:
+      serviceAccountName: jenkins-controller
+      
+      # Node selector to ensure Jenkins controller runs on on-demand instances
+      # Requirement 3.9: Jenkins controller SHALL run on on-demand instances
+      nodeSelector:
+        workload-type: jenkins-controller
+      
+      # Toleration to allow scheduling on nodes with jenkins-controller taint
+      # This ensures the controller can run on dedicated controller nodes
+      tolerations:
+      - key: workload-type
+        operator: Equal
+        value: jenkins-controller
+        effect: NoSchedule
+      
+      # Restart policy set to Always
+      # Requirement 3.6: Jenkins controller SHALL have automatic pod restart enabled
+      restartPolicy: Always
+      
+      containers:
+      - name: jenkins
+        # Use ARM64-compatible Jenkins image for Graviton2 (t4g) instances
+        image: jenkins/jenkins:lts
+        imagePullPolicy: IfNotPresent
+        
+        # Environment variables for Java and Jenkins configuration
+        # Requirement 3.3: Configure environment variables (JAVA_OPTS, JENKINS_OPTS)
+        env:
+        - name: JAVA_OPTS
+          value: "-Xmx8g -Xms4g -Dhudson.model.DownloadService.noSignatureCheck=true"
+        - name: JENKINS_OPTS
+          value: "--sessionTimeout=1440"
+        # Enable Jenkins Configuration as Code plugin
+        - name: CASC_JENKINS_CONFIG
+          value: "/var/jenkins_home/casc_configs"
+        # Disable update center checks to avoid slowness in private subnet
+        - name: JENKINS_UC_DOWNLOAD
+          value: "false"
+        
+        # Resource requests and limits
+        # Requirement 3.3: Jenkins controller SHALL have at least 4GB memory and 2 CPU cores
+        # Increased resources for t4g.xlarge (4 vCPU, 16GB RAM)
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "8Gi"
+          limits:
+            cpu: "4"
+            memory: "12Gi"
+        
+        # Ports exposed by Jenkins controller
+        # Requirement 3.4: Jenkins controller accessible via Kubernetes Service
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: jnlp
+          containerPort: 50000
+          protocol: TCP
+        
+        # Volume mount for Jenkins home directory
+        # Requirement 3.2: Jenkins controller SHALL use persistent volume for Jenkins home
+        volumeMounts:
+        - name: jenkins-home
+          mountPath: /var/jenkins_home
+        # Volume mount for Jenkins Configuration as Code (JCasC)
+        # This mounts the agent pod template configuration
+        - name: jenkins-agent-config
+          mountPath: /var/jenkins_home/casc_configs
+          readOnly: true
+        
+        # Liveness probe to check if Jenkins is running
+        livenessProbe:
+          httpGet:
+            path: /login
+            port: 8080
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        
+        # Readiness probe to check if Jenkins is ready to accept traffic
+        readinessProbe:
+          httpGet:
+            path: /login
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      
+      # Volumes for ConfigMaps
+      # Mount the agent pod template configuration
+      volumes:
+      - name: jenkins-agent-config
+        configMap:
+          name: jenkins-agent-pod-template
+  
+  # Volume claim templates for persistent storage
+  # This will be created in task 9.3
+  volumeClaimTemplates:
+  - metadata:
+      name: jenkins-home
+    spec:
+      accessModes:
+      - ReadWriteMany
+      storageClassName: efs-sc
+      resources:
+        requests:
+          storage: 100Gi

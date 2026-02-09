@@ -1,0 +1,64 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+  labels:
+    app.kubernetes.io/name: efs-csi-driver
+    app.kubernetes.io/component: storageclass
+    app.kubernetes.io/part-of: jenkins-eks-cluster
+provisioner: efs.csi.aws.com
+parameters:
+  # Provisioning mode: efs-ap uses EFS Access Points for dynamic provisioning
+  # Each PVC will get its own access point with isolated directory
+  provisioningMode: efs-ap
+  
+  # EFS File System ID - MUST be replaced with actual file system ID
+  # Get this value from CDK stack output: JenkinsEksEfsFileSystemId
+  # Example: fs-0123456789abcdef0
+  fileSystemId: fs-0351ee5e62a31c784
+  
+  # Directory permissions for access points (octal format)
+  # 700 = owner has read, write, execute; group and others have no permissions
+  # Requirements: 6.8, 6.9
+  directoryPerms: "700"
+  
+  # GID (Group ID) range for access points
+  # Each access point will be assigned a GID from this range
+  # Requirements: 6.8, 6.9
+  gidRangeStart: "1000"
+  gidRangeEnd: "2000"
+  
+  # Base path for all access points created by this storage class
+  # All Jenkins data will be stored under /jenkins in the EFS file system
+  # Requirements: 6.8, 6.9
+  basePath: "/jenkins"
+  
+  # UID (User ID) for access point root directory
+  # This is the user ID that will own the root directory of each access point
+  # Using 1000 as a standard non-root user ID
+  uid: "1000"
+  
+  # GID (Group ID) for access point root directory
+  # This is the group ID that will own the root directory of each access point
+  # Using 1000 to match the UID
+  gid: "1000"
+
+# Mount options for EFS volumes
+# These options are applied when mounting the EFS file system to pods
+mountOptions:
+  - tls  # Use TLS for encryption in transit
+
+# Volume binding mode: Immediate
+# Volumes are provisioned and bound as soon as the PVC is created
+# This is suitable for EFS since it's a shared file system available across all AZs
+volumeBindingMode: Immediate
+
+# Allow volume expansion
+# Enables resizing of persistent volumes (though EFS grows automatically)
+allowVolumeExpansion: true
+
+# Reclaim policy: Retain
+# When a PVC is deleted, the PV and its data are retained
+# This prevents accidental data loss
+# For production, use Retain; for testing, you can use Delete
+reclaimPolicy: Retain

@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler
+  namespace: kube-system
+  labels:
+    app: cluster-autoscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-autoscaler
+  template:
+    metadata:
+      labels:
+        app: cluster-autoscaler
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8085"
+    spec:
+      # Requirement 8.1: Use IRSA service account for AWS API access
+      serviceAccountName: cluster-autoscaler
+      
+      # Priority class for critical system component
+      priorityClassName: system-cluster-critical
+      
+      containers:
+      - name: cluster-autoscaler
+        # Requirement 8.1: Use Cluster Autoscaler v1.31.0 for Kubernetes 1.31
+        image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.31.0
+        imagePullPolicy: IfNotPresent
+        
+        command:
+        - ./cluster-autoscaler
+        - --v=4
+        - --stderrthreshold=info
+        - --cloud-provider=aws
+        # Requirement 8.2: Use auto-discovery to find node groups
+        - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/jenkins-eks-cluster
+        - --balance-similar-node-groups
+        - --skip-nodes-with-system-pods=false
+        # Requirement 8.3: Scale down delay of 10 minutes
+        - --scale-down-delay-after-add=10m
+        - --scale-down-unneeded-time=10m
+        # Requirement 8.4: Scale down utilization threshold of 0.5
+        - --scale-down-utilization-threshold=0.5
+        # Requirement 8.5: Enable scale down
+        - --scale-down-enabled=true
+        # Requirement 8.6: Respect pod disruption budgets
+        - --balance-similar-node-groups=true
+        - --expander=least-waste
+        
+        resources:
+          requests:
+            cpu: 100m
+            memory: 300Mi
+          limits:
+            cpu: 100m
+            memory: 300Mi
+        
+        # Liveness and readiness probes
+        livenessProbe:
+          httpGet:
+            path: /health-check
+            port: 8085
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health-check
+            port: 8085
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      
+      # Node selector to run on controller nodes (optional)
+      nodeSelector:
+        kubernetes.io/os: linux
+      
+      # Tolerations to allow scheduling on all nodes
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/control-plane
+      - effect: NoSchedule
+        key: workload-type
+        value: jenkins-controller

@@ -1,0 +1,7 @@
+# Cluster Autoscaler uses the kube-system namespace
+# This file is a placeholder to document that cluster-autoscaler
+# resources are deployed in the kube-system namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-system

@@ -1,0 +1,7 @@
+# Namespace for EFS CSI Driver components
+# The EFS CSI Driver components will be deployed in the kube-system namespace
+# as per Kubernetes best practices for system-level components
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-system

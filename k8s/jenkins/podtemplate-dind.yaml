@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: jenkins-agent-dind
+  namespace: jenkins
+  labels:
+    jenkins: agent
+spec:
+  serviceAccountName: jenkins-controller
+  
+  # Node affinity to prefer spot instances
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+          - key: node-lifecycle
+            operator: In
+            values:
+            - spot
+    # Avoid controller nodes
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - jenkins-controller
+        topologyKey: kubernetes.io/hostname
+  
+  containers:
+  # JNLP agent container
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+    imagePullPolicy: IfNotPresent
+    workingDir: /home/jenkins/agent
+    
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    
+    env:
+    - name: DOCKER_HOST
+      value: "tcp://localhost:2375"
+    
+    volumeMounts:
+    - name: workspace-volume
+      mountPath: /home/jenkins/agent
+  
+  # Docker-in-Docker sidecar
+  - name: docker
+    image: docker:24-dind
+    imagePullPolicy: IfNotPresent
+    
+    securityContext:
+      privileged: true
+    
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+    
+    env:
+    - name: DOCKER_TLS_CERTDIR
+      value: ""
+    
+    volumeMounts:
+    - name: docker-storage
+      mountPath: /var/lib/docker
+  
+  volumes:
+  - name: workspace-volume
+    emptyDir: {}
+  - name: docker-storage
+    emptyDir: {}
+  
+  restartPolicy: Never

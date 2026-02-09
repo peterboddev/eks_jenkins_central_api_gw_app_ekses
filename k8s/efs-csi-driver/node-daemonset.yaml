@@ -1,0 +1,135 @@
+# EFS CSI Driver Node Plugin DaemonSet
+# This DaemonSet runs on all worker nodes and handles mounting EFS file systems to pods
+#
+# Requirements: 6.8 - EKS cluster has EFS CSI Driver installed for dynamic volume provisioning
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: efs-csi-node
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: aws-efs-csi-driver
+    app.kubernetes.io/component: node
+spec:
+  selector:
+    matchLabels:
+      app: efs-csi-node
+      app.kubernetes.io/name: aws-efs-csi-driver
+      app.kubernetes.io/component: node
+  template:
+    metadata:
+      labels:
+        app: efs-csi-node
+        app.kubernetes.io/name: aws-efs-csi-driver
+        app.kubernetes.io/component: node
+    spec:
+      serviceAccountName: efs-csi-node-sa
+      priorityClassName: system-node-critical
+      hostNetwork: true
+      dnsPolicy: ClusterFirst
+      tolerations:
+        - operator: Exists
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+        # EFS CSI Driver node plugin
+        - name: efs-plugin
+          image: amazon/aws-efs-csi-driver:v1.7.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --endpoint=$(CSI_ENDPOINT)
+            - --logtostderr
+            - --v=2
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:/csi/csi.sock
+            - name: CSI_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: kubelet-dir
+              mountPath: /var/lib/kubelet
+              mountPropagation: "Bidirectional"
+            - name: plugin-dir
+              mountPath: /csi
+            - name: efs-state-dir
+              mountPath: /var/run/efs
+            - name: efs-utils-config
+              mountPath: /var/amazon/efs
+          ports:
+            - name: healthz
+              containerPort: 9809
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 2
+            failureThreshold: 5
+          securityContext:
+            privileged: true
+        
+        # CSI Node Driver Registrar sidecar
+        - name: csi-driver-registrar
+          image: public.ecr.aws/eks-distro/kubernetes-csi/node-driver-registrar:v2.8.0-eks-1-27-3
+          imagePullPolicy: IfNotPresent
+          args:
+            - --csi-address=$(ADDRESS)
+            - --kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)
+            - --v=2
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+            - name: DRIVER_REG_SOCK_PATH
+              value: /var/lib/kubelet/plugins/efs.csi.aws.com/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+            - name: registration-dir
+              mountPath: /registration
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+        
+        # Liveness probe sidecar
+        - name: liveness-probe
+          image: public.ecr.aws/eks-distro/kubernetes-csi/livenessprobe:v2.10.0-eks-1-27-3
+          imagePullPolicy: IfNotPresent
+          args:
+            - --csi-address=/csi/csi.sock
+            - --health-port=9809
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /csi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+      
+      volumes:
+        - name: kubelet-dir
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/efs.csi.aws.com/
+            type: DirectoryOrCreate
+        - name: registration-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins_registry/
+            type: Directory
+        - name: efs-state-dir
+          hostPath:
+            path: /var/run/efs
+            type: DirectoryOrCreate
+        - name: efs-utils-config
+          hostPath:
+            path: /var/amazon/efs
+            type: DirectoryOrCreate

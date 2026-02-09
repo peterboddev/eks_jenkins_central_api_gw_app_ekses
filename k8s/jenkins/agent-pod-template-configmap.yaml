@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-agent-pod-template
+  namespace: jenkins
+  labels:
+    app: jenkins-controller
+    component: agent-config
+data:
+  # Jenkins Configuration as Code (JCasC) for agent pod template
+  # This configures the Kubernetes plugin to dynamically provision Jenkins agents
+  jenkins-agent-config.yaml: |
+    jenkins:
+      # Jenkins root URL configuration
+      # For production, replace with actual external URL (e.g., https://jenkins.example.com)
+      # For local testing via port-forward, use http://localhost:8080
+      systemMessage: "Jenkins on EKS - Configured via JCasC"
+      
+      # Disable builds on controller (built-in node)
+      # All builds should run on dynamically provisioned agent pods
+      numExecutors: 0
+      mode: EXCLUSIVE
+      
+      # Configure Jenkins location (root URL)
+      location:
+        url: "http://localhost:8080/"
+        adminAddress: "admin@example.com"
+      
+      # Disable CSRF protection for easier configuration during setup
+      # Re-enable this in production by removing this section
+      crumbIssuer:
+        standard:
+          excludeClientIPFromCrumb: true
+      
+      clouds:
+        - kubernetes:
+            name: "kubernetes"
+            serverUrl: "https://kubernetes.default"
+            namespace: "jenkins"
+            jenkinsUrl: "http://jenkins:8080"
+            jenkinsTunnel: "jenkins:50000"
+            connectTimeout: 5
+            readTimeout: 15
+            containerCapStr: "10"
+            maxRequestsPerHostStr: "32"
+            retentionTimeout: 5
+            
+            # Pod template for Jenkins agents
+            # Requirements 3.8, 4.6: Configure agent pods with resource limits and node affinity
+            templates:
+              - name: "jenkins-agent"
+                namespace: "jenkins"
+                label: "jenkins-agent"
+                nodeUsageMode: NORMAL
+                idleMinutes: 10
+                
+                # Service account for agent pods
+                serviceAccount: "jenkins-controller"
+                
+                # Node selector and affinity configuration
+                # Requirement 4.6: Agent pods SHALL have node affinity to prefer spot instance nodes
+                nodeSelector: ""
+                
+                # Node affinity to prefer spot instance nodes
+                yamlMergeStrategy: "override"
+                yaml: |
+                  apiVersion: v1
+                  kind: Pod
+                  metadata:
+                    labels:
+                      jenkins: agent
+                  spec:
+                    # Node affinity to prefer spot instance nodes
+                    # Requirement 4.6: Prefer nodes with label node-lifecycle=spot
+                    affinity:
+                      nodeAffinity:
+                        preferredDuringSchedulingIgnoredDuringExecution:
+                        - weight: 100
+                          preference:
+                            matchExpressions:
+                            - key: node-lifecycle
+                              operator: In
+                              values:
+                              - spot
+                      # Pod anti-affinity to avoid controller nodes
+                      # Requirement 3.8: Agent pods SHALL NOT require direct access to controller's persistent volume
+                      # This ensures agents don't schedule on the same node as the controller
+                      podAntiAffinity:
+                        requiredDuringSchedulingIgnoredDuringExecution:
+                        - labelSelector:
+                            matchExpressions:
+                            - key: app
+                              operator: In
+                              values:
+                              - jenkins-controller
+                          topologyKey: kubernetes.io/hostname
+                    containers:
+                    - name: jnlp
+                      image: jenkins/inbound-agent:latest
+                      imagePullPolicy: IfNotPresent
+                      
+                      # Resource requests and limits
+                      # Requirement 4.6: Configure resource requests and limits for agent pods
+                      resources:
+                        requests:
+                          cpu: "500m"
+                          memory: "1Gi"
+                        limits:
+                          cpu: "1"
+                          memory: "2Gi"
+                      
+                      # Environment variables
+                      # Configure JENKINS_URL for agent connection
+                      env:
+                      - name: JENKINS_URL
+                        value: "http://jenkins:8080"
+                      - name: JENKINS_TUNNEL
+                        value: "jenkins:50000"
+                      - name: DOCKER_HOST
+                        value: "tcp://localhost:2375"
+                      
+                      # Volume mounts for workspace
+                      volumeMounts:
+                      - name: workspace-volume
+                        mountPath: /home/jenkins/agent
+                    
+                    # Docker-in-Docker (DinD) sidecar container
+                    # This provides Docker capability for building and pushing images
+                    - name: docker
+                      image: docker:24-dind
+                      imagePullPolicy: IfNotPresent
+                      
+                      # Run in privileged mode (required for DinD)
+                      securityContext:
+                        privileged: true
+                      
+                      # Resource requests and limits for Docker daemon
+                      resources:
+                        requests:
+                          cpu: "500m"
+                          memory: "1Gi"
+                        limits:
+                          cpu: "2"
+                          memory: "4Gi"
+                      
+                      # Environment variables for Docker daemon
+                      env:
+                      - name: DOCKER_TLS_CERTDIR
+                        value: ""
+                      
+                      # Volume mounts for Docker storage
+                      volumeMounts:
+                      - name: docker-storage
+                        mountPath: /var/lib/docker
+                    
+                    # Volumes for agent workspace and Docker storage
+                    volumes:
+                    - name: workspace-volume
+                      emptyDir: {}
+                    - name: docker-storage
+                      emptyDir: {}
+                    
+                    # Restart policy for agent pods
+                    restartPolicy: Never

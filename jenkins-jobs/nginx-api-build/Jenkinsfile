@@ -1,0 +1,168 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins: agent
+spec:
+  serviceAccountName: jenkins-agent
+  containers:
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command:
+    - cat
+    tty: true
+  volumes:
+  - name: docker-sock
+    emptyDir: {}
+'''
+        }
+    }
+    
+    environment {
+        AWS_REGION = 'us-west-2'
+        ECR_REGISTRY = '450683699755.dkr.ecr.us-west-2.amazonaws.com'
+        IMAGE_NAME = 'nginx-api'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Validate API Contract') {
+            steps {
+                container('docker') {
+                    sh '''
+                        cd nginx-api
+                        
+                        # Install dependencies for validation
+                        npm install --only=dev js-yaml
+                        
+                        # Validate that app.js implements all routes in openapi.yaml
+                        echo "🔍 Validating API contract..."
+                        node validate-api-contract.js
+                        
+                        if [ $? -ne 0 ]; then
+                            echo "❌ API contract validation failed!"
+                            echo "The Express app does not match the OpenAPI specification."
+                            echo "Please ensure all routes in openapi.yaml are implemented in app.js"
+                            exit 1
+                        fi
+                        
+                        echo "✅ API contract validation passed"
+                    '''
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                container('docker') {
+                    sh '''
+                        cd nginx-api
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${IMAGE_NAME}:latest
+                    '''
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                container('docker') {
+                    sh '''
+                        # Login to ECR
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        
+                        # Push images
+                        docker push ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/${IMAGE_NAME}:latest
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to EKS') {
+            steps {
+                container('kubectl') {
+                    sh '''
+                        # Update kubeconfig for nginx-api-cluster
+                        aws eks update-kubeconfig --name nginx-api-cluster --region ${AWS_REGION}
+                        
+                        # Check if deployment exists
+                        if kubectl get deployment nginx-api -n default > /dev/null 2>&1; then
+                            echo "Deployment exists, updating image..."
+                            kubectl set image deployment/nginx-api nginx-api=${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -n default
+                            kubectl rollout status deployment/nginx-api -n default --timeout=5m
+                        else
+                            echo "Deployment does not exist. Please deploy using Helm first."
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                container('kubectl') {
+                    sh '''
+                        # Wait for rollout to complete
+                        kubectl rollout status deployment/nginx-api -n default --timeout=5m
+                        
+                        # Get pod status
+                        kubectl get pods -n default -l app=nginx-api
+                        
+                        # Get service and ingress
+                        kubectl get svc,ingress -n default -l app=nginx-api
+                    '''
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                container('kubectl') {
+                    sh '''
+                        # Make test script executable
+                        chmod +x jenkins-jobs/nginx-api-build/test-endpoints.sh
+                        
+                        # Run endpoint tests
+                        ./jenkins-jobs/nginx-api-build/test-endpoints.sh
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "✅ nginx-api build, deployment, and tests successful!"
+            echo "Image: ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo ""
+            echo "All endpoints tested successfully:"
+            echo "  - GET /health"
+            echo "  - GET /api/info"
+            echo "  - GET /api/test"
+            echo "  - POST /api/echo"
+        }
+        failure {
+            echo "❌ nginx-api build, deployment, or tests failed!"
+        }
+    }
+}
