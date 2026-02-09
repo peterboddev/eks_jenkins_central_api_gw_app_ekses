@@ -18,7 +18,7 @@ data:
             }
             
             triggers {
-              scm('H/5 * * * *')
+              githubPush()
             }
             
             definition {
@@ -41,7 +41,7 @@ data:
             description('Build nginx demo Docker image')
             
             triggers {
-              scm('H/5 * * * *')
+              githubPush()
             }
             
             definition {

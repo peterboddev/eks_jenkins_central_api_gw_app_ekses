@@ -8,13 +8,13 @@ Your Jenkins setup uses **Git SCM polling** to automatically detect and build ch
 
 **Repository**: `https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git`  
 **Branch**: `master`  
-**Poll Interval**: Every 5 minutes (`H/5 * * * *`)
+**Trigger**: GitHub webhook (instant builds on push)
 
 ### How It Works
 
 1. **Jobs Defined as Code**: Jenkins jobs are configured in `k8s/jenkins/jobs-configmap.yaml`
-2. **SCM Polling**: Jenkins checks GitHub every 5 minutes for new commits
-3. **Automatic Builds**: When changes are detected, Jenkins:
+2. **GitHub Webhooks**: GitHub sends webhook to Jenkins when you push code
+3. **Instant Builds**: Jenkins receives webhook and immediately:
    - Clones the repository
    - Checks out the `master` branch
    - Runs the Jenkinsfile from the appropriate directory
@@ -25,12 +25,12 @@ Your Jenkins setup uses **Git SCM polling** to automatically detect and build ch
 #### 1. nginx-api-build
 - **Jenkinsfile**: `jenkins-jobs/nginx-api-build/Jenkinsfile`
 - **Purpose**: Build and deploy the Node.js API to nginx-api-cluster
-- **Triggers**: Git changes + every 5 minutes polling
+- **Triggers**: GitHub webhook (instant)
 
 #### 2. nginx-docker-build
 - **Jenkinsfile**: `jenkins-jobs/nginx-docker-build/Jenkinsfile`
 - **Purpose**: Build nginx demo Docker image
-- **Triggers**: Git changes + every 5 minutes polling
+- **Triggers**: GitHub webhook (instant)
 
 ### Workflow
 
@@ -40,17 +40,13 @@ Your Jenkins setup uses **Git SCM polling** to automatically detect and build ch
 │   (master)      │
 └────────┬────────┘
          │
+         │ Webhook (instant)
          ▼
 ┌─────────────────┐
-│ Jenkins Polls   │◄─── Every 5 minutes
-│ (H/5 * * * *)   │
+│ Jenkins Receives│
+│ Webhook         │
 └────────┬────────┘
          │
-         ▼
-┌─────────────────┐
-│ Change Detected?│
-└────────┬────────┘
-         │ Yes
          ▼
 ┌─────────────────┐
 │ Clone Repo      │
@@ -107,28 +103,6 @@ If you don't want to wait for polling, you can manually trigger a build:
 2. Navigate to the job (nginx-api-build or nginx-docker-build)
 3. Click "Build Now"
 
-### Webhook Alternative (Optional)
-
-For instant builds instead of polling, you can configure GitHub webhooks:
-
-1. **In GitHub**: Settings → Webhooks → Add webhook
-   - Payload URL: `http://<JENKINS_URL>/github-webhook/`
-   - Content type: `application/json`
-   - Events: Just the push event
-
-2. **In Jenkins ConfigMap**: Change trigger from:
-   ```groovy
-   triggers {
-     scm('H/5 * * * *')  // Polling
-   }
-   ```
-   To:
-   ```groovy
-   triggers {
-     githubPush()  // Webhook
-   }
-   ```
-
 ### Troubleshooting
 
 **Jobs not triggering?**
@@ -151,9 +125,23 @@ For instant builds instead of polling, you can configure GitHub webhooks:
 ### Next Steps
 
 1. **Push a change** to your repository
-2. **Wait up to 5 minutes** for Jenkins to detect it
-3. **Check Jenkins UI** to see the build running
+2. **Set up GitHub webhook** (see [GitHub Webhook Setup Guide](GITHUB_WEBHOOK_SETUP.md))
+3. **Builds trigger instantly** when you push code
 4. **View logs** in Jenkins or kubectl
+
+### Setting Up GitHub Webhook
+
+For instant builds instead of waiting, configure a GitHub webhook:
+
+**Quick setup:**
+1. Get Jenkins ALB URL: `kubectl get ingress jenkins -n jenkins`
+2. In GitHub: Settings → Webhooks → Add webhook
+3. Payload URL: `http://<JENKINS_ALB_URL>/github-webhook/`
+4. Content type: `application/json`
+5. Events: Just the push event
+6. Save webhook
+
+**Detailed instructions:** See [GitHub Webhook Setup Guide](GITHUB_WEBHOOK_SETUP.md)
 
 ### Files Updated
 

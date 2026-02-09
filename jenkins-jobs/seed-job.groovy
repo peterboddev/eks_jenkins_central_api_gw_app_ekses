@@ -10,7 +10,7 @@ pipelineJob('nginx-api-build') {
     }
     
     triggers {
-        scm('H/5 * * * *')
+        githubPush()
     }
     
     definition {
@@ -34,7 +34,7 @@ pipelineJob('nginx-docker-build') {
     description('Build nginx demo Docker image')
     
     triggers {
-        scm('H/5 * * * *')
+        githubPush()
     }
     
     definition {
