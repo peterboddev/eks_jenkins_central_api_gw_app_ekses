@@ -1,0 +1,201 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: aws-node-termination-handler
+  namespace: kube-system
+  labels:
+    app: aws-node-termination-handler
+spec:
+  selector:
+    matchLabels:
+      app: aws-node-termination-handler
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: aws-node-termination-handler
+    spec:
+      # Requirement 4.4: Use service account for Kubernetes API access
+      serviceAccountName: aws-node-termination-handler
+      
+      # Host networking for accessing EC2 metadata service
+      hostNetwork: true
+      
+      # DNS policy for host network
+      dnsPolicy: ClusterFirstWithHostNet
+      
+      # Security context
+      securityContext:
+        fsGroup: 1000
+      
+      # Priority class for critical system component
+      priorityClassName: system-node-critical
+      
+      # Affinity to run only on spot instance nodes
+      # Requirement 4.4: Node Termination Handler SHALL run on spot instance nodes
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-lifecycle
+                operator: In
+                values:
+                - spot
+      
+      containers:
+      - name: aws-node-termination-handler
+        # Requirement 4.4: Use AWS Node Termination Handler
+        image: public.ecr.aws/aws-ec2/aws-node-termination-handler:v1.21.0
+        imagePullPolicy: IfNotPresent
+        
+        # Security context for container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+        
+        # Environment variables for configuration
+        env:
+        # Enable spot interruption draining
+        # Requirement 7.2: Handle spot instance interruptions gracefully
+        - name: ENABLE_SPOT_INTERRUPTION_DRAINING
+          value: "true"
+        
+        # Enable scheduled event draining
+        # Requirement 7.7: Drain nodes before termination
+        - name: ENABLE_SCHEDULED_EVENT_DRAINING
+          value: "true"
+        
+        # Enable SQS termination draining (optional, requires SQS setup)
+        - name: ENABLE_SQS_TERMINATION_DRAINING
+          value: "false"
+        
+        # Enable rebalance recommendation draining
+        - name: ENABLE_REBALANCE_DRAINING
+          value: "true"
+        
+        # Pod termination grace period
+        # Requirement 7.2: Set pod termination grace period to 120 seconds
+        - name: POD_TERMINATION_GRACE_PERIOD
+          value: "120"
+        
+        # Node termination grace period
+        # Requirement 7.2: Set node termination grace period to 120 seconds
+        - name: NODE_TERMINATION_GRACE_PERIOD
+          value: "120"
+        
+        # Metadata service endpoint
+        - name: METADATA_URL
+          value: "http://169.254.169.254:80"
+        
+        # Webhook URL (optional, for notifications)
+        - name: WEBHOOK_URL
+          value: ""
+        
+        # Webhook headers (optional)
+        - name: WEBHOOK_HEADERS
+          value: ""
+        
+        # Webhook template (optional)
+        - name: WEBHOOK_TEMPLATE
+          value: ""
+        
+        # Dry run mode (set to false for production)
+        - name: DRY_RUN
+          value: "false"
+        
+        # Cordon only mode (set to false to enable draining)
+        - name: CORDON_ONLY
+          value: "false"
+        
+        # Taint node on termination
+        - name: TAINT_NODE
+          value: "true"
+        
+        # Delete local data on drain
+        - name: DELETE_LOCAL_DATA
+          value: "true"
+        
+        # Ignore daemon sets on drain
+        - name: IGNORE_DAEMON_SETS
+          value: "true"
+        
+        # JSON logging
+        - name: JSON_LOGGING
+          value: "true"
+        
+        # Log level
+        - name: LOG_LEVEL
+          value: "info"
+        
+        # Emit Kubernetes events
+        - name: EMIT_KUBERNETES_EVENTS
+          value: "true"
+        
+        # Kubernetes events extra annotations
+        - name: KUBERNETES_EVENTS_EXTRA_ANNOTATIONS
+          value: ""
+        
+        # Complete lifecycle action
+        - name: COMPLETE_LIFECYCLE_ACTION_DELAY_SECONDS
+          value: "-1"
+        
+        # Enable Prometheus metrics
+        - name: ENABLE_PROMETHEUS_SERVER
+          value: "true"
+        
+        # Prometheus server port
+        - name: PROMETHEUS_SERVER_PORT
+          value: "9092"
+        
+        # Resources
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        
+        # Volume mounts
+        volumeMounts:
+        - name: uptime
+          mountPath: /proc/uptime
+          readOnly: true
+        
+        # Liveness probe
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Readiness probe
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      
+      # Volumes
+      volumes:
+      - name: uptime
+        hostPath:
+          path: /proc/uptime
+          type: File
+      
+      # Tolerations to run on all spot nodes
+      tolerations:
+      - operator: Exists

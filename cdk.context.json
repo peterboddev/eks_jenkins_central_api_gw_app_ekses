@@ -1,0 +1,12 @@
+{
+  "eks:default-kubernetes-version": "1.32",
+  "eks:cluster-version": "1.32",
+  "@aws-cdk/core:newStyleStackSynthesis": true,
+  "@aws-cdk/aws-eks:defaultCapacityType": "NODEGROUP",
+  "availability-zones:account=450683699755:region=us-west-2": [
+    "us-west-2a",
+    "us-west-2b",
+    "us-west-2c",
+    "us-west-2d"
+  ]
+}

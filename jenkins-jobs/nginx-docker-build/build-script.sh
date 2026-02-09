@@ -1,0 +1,186 @@
+#!/bin/bash
+set -e
+
+# Environment variables
+export AWS_REGION=us-west-2
+export AWS_ACCOUNT_ID=450683699755
+export ECR_REPOSITORY=nginx-demo
+export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+export IMAGE_TAG=${IMAGE_TAG:-${BUILD_NUMBER}}
+
+echo "========================================="
+echo "Building Nginx Docker Image"
+echo "========================================="
+echo "Repository: ${ECR_REPOSITORY}"
+echo "Tag: ${IMAGE_TAG}"
+echo "Registry: ${ECR_REGISTRY}"
+echo "========================================="
+
+# Create Dockerfile
+cat > Dockerfile <<'EOF'
+FROM nginx:alpine
+
+# Add custom nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Add custom index.html
+COPY index.html /usr/share/nginx/html/index.html
+
+# Expose port 80
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+
+# Run nginx
+CMD ["nginx", "-g", "daemon off;"]
+EOF
+
+# Create nginx.conf
+cat > nginx.conf <<'EOF'
+user  nginx;
+worker_processes  auto;
+
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+    keepalive_timeout  65;
+    gzip  on;
+
+    server {
+        listen       80;
+        server_name  localhost;
+
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+        }
+
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+    }
+}
+EOF
+
+# Create index.html
+cat > index.html <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nginx Demo - Jenkins EKS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        h1 { font-size: 3em; margin: 0 0 20px 0; }
+        p { font-size: 1.2em; margin: 10px 0; }
+        .badge {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Nginx Demo</h1>
+        <p>Built with Jenkins on EKS</p>
+        <p>Deployed to Amazon ECR</p>
+        <div>
+            <span class="badge">Docker</span>
+            <span class="badge">Nginx</span>
+            <span class="badge">Jenkins</span>
+            <span class="badge">EKS</span>
+            <span class="badge">ECR</span>
+        </div>
+        <p style="margin-top: 30px; font-size: 0.9em; opacity: 0.8;">
+            Build #${BUILD_NUMBER}
+        </p>
+    </div>
+</body>
+</html>
+EOF
+
+echo ""
+echo "Step 1: Building Docker image..."
+docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .
+docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REPOSITORY}:latest
+
+echo ""
+echo "Step 2: Logging in to Amazon ECR..."
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+echo ""
+echo "Step 3: Tagging image for ECR..."
+docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+docker tag ${ECR_REPOSITORY}:latest ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+echo ""
+echo "Step 4: Pushing image to ECR..."
+docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+docker push ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+
+echo ""
+echo "Step 5: Verifying image in ECR..."
+aws ecr describe-images \
+    --repository-name ${ECR_REPOSITORY} \
+    --image-ids imageTag=${IMAGE_TAG} \
+    --region ${AWS_REGION}
+
+echo ""
+echo "========================================="
+echo "✅ SUCCESS!"
+echo "========================================="
+echo "Image pushed to:"
+echo "  ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+echo "  ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+echo "========================================="
+
+# Cleanup
+docker rmi ${ECR_REPOSITORY}:${IMAGE_TAG} || true
+docker rmi ${ECR_REPOSITORY}:latest || true
+docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG} || true
+docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest || true

@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc-jobs
+  namespace: jenkins
+  labels:
+    app: jenkins
+    jenkins-jenkins-config: "true"
+data:
+  jobs.yaml: |
+    jobs:
+      - script: >
+          pipelineJob('nginx-api-build') {
+            description('Build and deploy nginx-api Node.js application (with nginx reverse proxy) to nginx-api-cluster')
+            
+            properties {
+              githubProjectUrl('https://github.com/YOUR_USERNAME/eks_jenkins')
+            }
+            
+            triggers {
+              scm('H/5 * * * *')
+            }
+            
+            definition {
+              cpsScm {
+                scm {
+                  git {
+                    remote {
+                      url('https://github.com/YOUR_USERNAME/eks_jenkins.git')
+                    }
+                    branches('*/main')
+                  }
+                }
+                scriptPath('jenkins-jobs/nginx-api-build/Jenkinsfile')
+                lightweight(true)
+              }
+            }
+          }
+      - script: >
+          pipelineJob('nginx-docker-build') {
+            description('Build nginx demo Docker image')
+            
+            triggers {
+              scm('H/5 * * * *')
+            }
+            
+            definition {
+              cpsScm {
+                scm {
+                  git {
+                    remote {
+                      url('https://github.com/YOUR_USERNAME/eks_jenkins.git')
+                    }
+                    branches('*/main')
+                  }
+                }
+                scriptPath('jenkins-jobs/nginx-docker-build/Jenkinsfile')
+                lightweight(true)
+              }
+            }
+          }
+

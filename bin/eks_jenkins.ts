@@ -1,20 +1,26 @@
 #!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib/core';
-import { EksJenkinsStack } from '../lib/eks_jenkins-stack';
+import * as cdk from 'aws-cdk-lib';
+import { JenkinsEksStack } from '../lib/eks_jenkins-stack';
+import { NginxApiClusterStack } from '../lib/eks_nginx_api-stack';
 
 const app = new cdk.App();
-new EksJenkinsStack(app, 'EksJenkinsStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
 
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+// Deploy Jenkins EKS cluster in us-west-2 region
+const jenkinsStack = new JenkinsEksStack(app, 'JenkinsEksStack', {
+  env: { 
+    account: process.env.CDK_DEFAULT_ACCOUNT, 
+    region: 'us-west-2' 
+  },
+  description: 'Jenkins CI/CD platform on Amazon EKS with spot instances',
+});
 
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+// Deploy Nginx API cluster in us-west-2 region (separate VPC)
+new NginxApiClusterStack(app, 'NginxApiClusterStack', {
+  env: { 
+    account: process.env.CDK_DEFAULT_ACCOUNT, 
+    region: 'us-west-2' 
+  },
+  description: 'Nginx REST API cluster on Amazon EKS with Karpenter and API Gateway',
+  jenkinsVpcId: jenkinsStack.vpc.vpcId,
+  jenkinsAccountId: process.env.CDK_DEFAULT_ACCOUNT || '',
 });

@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Regenerate from OpenAPI",
+  "description": "Automatically regenerates Express app, handlers, and integration tests when openapi.yaml is modified",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "nginx-api/openapi.yaml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The OpenAPI specification has been updated. Please:\n1. Run `cd nginx-api && npm run generate-all` to regenerate the Express app and tests\n2. Review the generated/updated handler files in nginx-api/handlers/\n3. If new handlers were created, fill in the business logic (look for TODO comments)\n4. Run `npm run validate` to ensure the implementation matches the OpenAPI spec\n5. Summarize what was generated/updated"
+  }
+}

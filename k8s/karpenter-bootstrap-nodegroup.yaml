@@ -1,0 +1,27 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: nginx-api-cluster
+  region: us-west-2
+
+vpc:
+  id: vpc-034b59e141c9a0afa
+  subnets:
+    private:
+      us-west-2a:
+        id: subnet-0752179b36efe3bdd
+      us-west-2b:
+        id: subnet-04cd45d65ad61253d
+
+managedNodeGroups:
+  - name: karpenter-bootstrap
+    instanceType: t3.small
+    minSize: 1
+    maxSize: 1
+    desiredCapacity: 1
+    privateNetworking: true
+    labels:
+      role: karpenter-bootstrap
+    tags:
+      Name: karpenter-bootstrap-node

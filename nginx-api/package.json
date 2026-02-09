@@ -1,0 +1,32 @@
+{
+  "name": "nginx-api",
+  "version": "1.0.0",
+  "description": "Simple Express.js API application with nginx reverse proxy",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "validate": "node validate-api-contract.js",
+    "generate-tests": "node generate-tests-from-openapi.js > ../jenkins-jobs/nginx-api-build/test-endpoints-generated.sh",
+    "generate-app": "node generate-app-from-openapi.js",
+    "generate-all": "npm run generate-app && npm run generate-tests",
+    "pretest": "npm run validate"
+  },
+  "keywords": [
+    "express",
+    "api",
+    "nginx",
+    "openapi"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "express-openapi-validator": "^5.1.0",
+    "nodemon": "^3.0.1",
+    "swagger-ui-express": "^5.0.0"
+  }
+}

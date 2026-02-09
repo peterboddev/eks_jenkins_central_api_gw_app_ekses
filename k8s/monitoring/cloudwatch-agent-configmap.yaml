@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cwagentconfig
+  namespace: amazon-cloudwatch
+data:
+  # CloudWatch agent configuration for Container Insights
+  # Requirement 10.1: CloudWatch Container Insights enabled for cluster monitoring
+  cwagentconfig.json: |
+    {
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "cluster_name": "CLUSTER_NAME_PLACEHOLDER",
+            "metrics_collection_interval": 60
+          }
+        },
+        "force_flush_interval": 5
+      }
+    }
