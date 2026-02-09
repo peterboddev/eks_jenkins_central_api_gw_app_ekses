@@ -61,27 +61,41 @@ This guide covers how to properly manage secrets in the Jenkins EKS infrastructu
 
 **Purpose**: Validates webhook requests from GitHub
 
-**Storage**:
-```bash
-# Create
-SECRET=$(openssl rand -hex 32)
-aws secretsmanager create-secret \
-  --name jenkins/github-webhook-secret \
-  --description "GitHub webhook secret for Jenkins CI/CD" \
-  --secret-string "$SECRET" \
-  --region us-west-2
+**Creation**: Automatically created by CDK during infrastructure deployment
 
-# Retrieve
+**CDK Code** (`lib/eks_jenkins-stack.ts`):
+```typescript
+const githubWebhookSecret = new secretsmanager.Secret(this, 'GitHubWebhookSecret', {
+  secretName: 'jenkins/github-webhook-secret',
+  description: 'GitHub webhook secret for Jenkins CI/CD pipeline validation',
+  generateSecretString: {
+    secretStringTemplate: JSON.stringify({}),
+    generateStringKey: 'secret',
+    excludePunctuation: true,
+    passwordLength: 64,
+  },
+});
+```
+
+**Retrieval**:
+```bash
+# Get the secret value
 aws secretsmanager get-secret-value \
   --secret-id jenkins/github-webhook-secret \
   --region us-west-2 \
   --query SecretString \
-  --output text
+  --output text | jq -r .secret
 ```
 
 **Usage**:
 - GitHub webhook configuration
 - Jenkins GitHub plugin validation
+
+**Benefits**:
+- ✅ Infrastructure as Code
+- ✅ Automatically created on deployment
+- ✅ No manual generation needed
+- ✅ IAM permissions pre-configured
 
 ### 2. Jenkins Admin Password
 

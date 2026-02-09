@@ -2,38 +2,35 @@
 
 ## 5-Minute Setup
 
-### 1. Generate and Store Webhook Secret
+### 1. Deploy Infrastructure (Secret Created Automatically)
 
-**Option A: AWS Secrets Manager (Recommended for Production)**
+The GitHub webhook secret is automatically created by CDK when you deploy the infrastructure:
 
 ```bash
-# Generate secret
-SECRET=$(openssl rand -hex 32)
+# Deploy CDK stack (creates secret automatically)
+cdk deploy
 
-# Store in AWS Secrets Manager
-aws secretsmanager create-secret \
-  --name jenkins/github-webhook-secret \
-  --description "GitHub webhook secret for Jenkins CI/CD" \
-  --secret-string "$SECRET" \
-  --region us-west-2
+# The secret is created at: jenkins/github-webhook-secret
+# CDK generates a secure 64-character random string
+```
 
-# Retrieve it later when needed
+**CDK Output** will show:
+```
+Outputs:
+JenkinsEksStack.GitHubWebhookSecretNameOutput = jenkins/github-webhook-secret
+JenkinsEksStack.GitHubWebhookSecretRetrievalCommandOutput = aws secretsmanager get-secret-value --secret-id jenkins/github-webhook-secret --region us-west-2 --query SecretString --output text | jq -r .secret
+```
+
+### 2. Retrieve the Secret Value
+
+```bash
+# Use the command from CDK output, or:
 aws secretsmanager get-secret-value \
   --secret-id jenkins/github-webhook-secret \
   --region us-west-2 \
   --query SecretString \
-  --output text
+  --output text | jq -r .secret
 ```
-
-**Option B: Local Documentation (Development Only)**
-
-For development/testing, you can store it locally in `access_details/CURRENT_ACCESS.md` (gitignored):
-```bash
-openssl rand -hex 32
-# Copy output and paste in access_details/CURRENT_ACCESS.md
-```
-
-**⚠️ Important**: For production, always use AWS Secrets Manager!
 
 ### 2. Get Jenkins URL
 

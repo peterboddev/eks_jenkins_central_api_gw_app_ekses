@@ -61,48 +61,39 @@ http://k8s-jenkins-jenkins-abc123def456-1234567890.us-west-2.elb.amazonaws.com
 
 ## Step 2: Configure GitHub Webhook
 
-### Generate and Store Webhook Secret (Required)
+### Retrieve Webhook Secret (Created by CDK)
 
-**Recommended: AWS Secrets Manager (Production)**
+The GitHub webhook secret is automatically created when you deploy the CDK stack:
 
 ```bash
-# Generate a secure random secret
-SECRET=$(openssl rand -hex 32)
-
-# Store in AWS Secrets Manager
-aws secretsmanager create-secret \
-  --name jenkins/github-webhook-secret \
-  --description "GitHub webhook secret for Jenkins CI/CD" \
-  --secret-string "$SECRET" \
-  --region us-west-2 \
-  --tags Key=Project,Value=Jenkins Key=Environment,Value=Production
-
-# Retrieve it when needed
+# Retrieve the secret value
 aws secretsmanager get-secret-value \
   --secret-id jenkins/github-webhook-secret \
   --region us-west-2 \
   --query SecretString \
-  --output text
+  --output text | jq -r .secret
 ```
 
-**Benefits of AWS Secrets Manager:**
-- ✅ Centralized secret management
-- ✅ Automatic rotation support
-- ✅ Audit logging (CloudTrail)
-- ✅ Fine-grained IAM access control
-- ✅ Encryption at rest (KMS)
-- ✅ Version history
-- ✅ Cross-account access support
+**How it works:**
+- CDK creates the secret during `cdk deploy`
+- Secret name: `jenkins/github-webhook-secret`
+- Secure 64-character random string
+- Encrypted at rest with AWS KMS
+- IAM permissions already configured for Jenkins
 
-**Alternative: Local Storage (Development Only)**
+**CDK Stack Outputs:**
+After deployment, CDK provides:
+- Secret ARN
+- Secret name
+- Retrieval command
 
-For development/testing only, store in `access_details/CURRENT_ACCESS.md` (gitignored):
-```bash
-openssl rand -hex 32
-# Copy output to access_details/CURRENT_ACCESS.md
-```
-
-**⚠️ Never commit secrets to git!**
+**Benefits:**
+- ✅ Infrastructure as Code - secret created automatically
+- ✅ No manual secret generation needed
+- ✅ Consistent across environments
+- ✅ Version controlled (CDK code)
+- ✅ Automatic IAM permissions
+- ✅ Encrypted and audited
 
 ### In GitHub Repository Settings:
 
@@ -138,7 +129,7 @@ openssl rand -hex 32
      --secret-id jenkins/github-webhook-secret \
      --region us-west-2 \
      --query SecretString \
-     --output text
+     --output text | jq -r .secret
    ```
 
    **Which events would you like to trigger this webhook?**

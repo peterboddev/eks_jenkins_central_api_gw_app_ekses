@@ -4,6 +4,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import * as backup from 'aws-cdk-lib/aws-backup';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
 
 /**
@@ -762,6 +763,50 @@ export class JenkinsEksStack extends cdk.Stack {
       exportName: 'JenkinsEksArtifactsBucketArn',
     });
 
+    // Create GitHub webhook secret in AWS Secrets Manager
+    // This secret is used to validate webhook requests from GitHub to Jenkins
+    // Requirement: Secure webhook validation for CI/CD pipeline
+    const githubWebhookSecret = new secretsmanager.Secret(this, 'GitHubWebhookSecret', {
+      secretName: 'jenkins/github-webhook-secret',
+      description: 'GitHub webhook secret for Jenkins CI/CD pipeline validation',
+      
+      // Generate a secure random secret (32 bytes = 64 hex characters)
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({}),
+        generateStringKey: 'secret',
+        excludePunctuation: true,
+        passwordLength: 64,
+      },
+      
+      // Remove secret when stack is deleted (set to RETAIN for production)
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Add tags to the secret
+    cdk.Tags.of(githubWebhookSecret).add('Name', 'jenkins-github-webhook-secret');
+    cdk.Tags.of(githubWebhookSecret).add('Purpose', 'GitHub Webhook Validation');
+    cdk.Tags.of(githubWebhookSecret).add('Project', 'Jenkins');
+    cdk.Tags.of(githubWebhookSecret).add('Environment', 'Production');
+    cdk.Tags.of(githubWebhookSecret).add('ManagedBy', 'AWS CDK');
+
+    // Output secret information for reference
+    new cdk.CfnOutput(this, 'GitHubWebhookSecretArnOutput', {
+      value: githubWebhookSecret.secretArn,
+      description: 'ARN of the GitHub webhook secret in Secrets Manager',
+      exportName: 'JenkinsGitHubWebhookSecretArn',
+    });
+
+    new cdk.CfnOutput(this, 'GitHubWebhookSecretNameOutput', {
+      value: githubWebhookSecret.secretName,
+      description: 'Name of the GitHub webhook secret in Secrets Manager',
+      exportName: 'JenkinsGitHubWebhookSecretName',
+    });
+
+    new cdk.CfnOutput(this, 'GitHubWebhookSecretRetrievalCommandOutput', {
+      value: `aws secretsmanager get-secret-value --secret-id ${githubWebhookSecret.secretName} --region ${this.region} --query SecretString --output text | jq -r .secret`,
+      description: 'Command to retrieve the GitHub webhook secret value',
+    });
+
     // Task 6.2: Create Jenkins controller IAM role
     // Requirements: 5.1, 5.2, 5.5, 5.7
     
@@ -996,6 +1041,35 @@ export class JenkinsEksStack extends cdk.Stack {
             'sts:GetSessionToken',
           ],
           resources: ['*'],
+        }),
+        
+        // Secrets Manager operations
+        // Allows Jenkins to retrieve secrets for GitHub webhook validation and other integrations
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'secretsmanager:GetSecretValue',
+            'secretsmanager:DescribeSecret',
+          ],
+          resources: [
+            `arn:aws:secretsmanager:${this.region}:${this.account}:secret:jenkins/*`,
+          ],
+        }),
+        
+        // KMS operations for Secrets Manager
+        // Allows Jenkins to decrypt secrets encrypted with KMS
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'kms:Decrypt',
+            'kms:DescribeKey',
+          ],
+          resources: ['*'],
+          conditions: {
+            StringEquals: {
+              'kms:ViaService': `secretsmanager.${this.region}.amazonaws.com`,
+            },
+          },
         }),
       ],
     });
