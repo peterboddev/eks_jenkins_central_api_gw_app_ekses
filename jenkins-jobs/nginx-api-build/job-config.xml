@@ -18,7 +18,7 @@
       <configVersion>2</configVersion>
       <userRemoteConfigs>
         <hudson.plugins.git.UserRemoteConfig>
-          <url>https://github.com/YOUR_USERNAME/eks_jenkins.git</url>
+          <url>https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git</url>
         </hudson.plugins.git.UserRemoteConfig>
       </userRemoteConfigs>
       <branches>

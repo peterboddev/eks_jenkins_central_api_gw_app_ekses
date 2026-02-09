@@ -14,7 +14,7 @@ data:
             description('Build and deploy nginx-api Node.js application (with nginx reverse proxy) to nginx-api-cluster')
             
             properties {
-              githubProjectUrl('https://github.com/YOUR_USERNAME/eks_jenkins')
+              githubProjectUrl('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses')
             }
             
             triggers {
@@ -26,9 +26,9 @@ data:
                 scm {
                   git {
                     remote {
-                      url('https://github.com/YOUR_USERNAME/eks_jenkins.git')
+                      url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                     }
-                    branches('*/main')
+                    branches('*/master')
                   }
                 }
                 scriptPath('jenkins-jobs/nginx-api-build/Jenkinsfile')
@@ -49,9 +49,9 @@ data:
                 scm {
                   git {
                     remote {
-                      url('https://github.com/YOUR_USERNAME/eks_jenkins.git')
+                      url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                     }
-                    branches('*/main')
+                    branches('*/master')
                   }
                 }
                 scriptPath('jenkins-jobs/nginx-docker-build/Jenkinsfile')

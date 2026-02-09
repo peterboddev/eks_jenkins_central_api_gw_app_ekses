@@ -66,9 +66,9 @@ To add a new job, edit `k8s/jenkins/jobs-configmap.yaml` and add your job defini
           scm {
             git {
               remote {
-                url('https://github.com/YOUR_USERNAME/eks_jenkins.git')
+                url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
               }
-              branches('*/main')
+              branches('*/master')
             }
           }
           scriptPath('jenkins-jobs/my-new-job/Jenkinsfile')

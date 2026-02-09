@@ -6,7 +6,7 @@ pipelineJob('nginx-api-build') {
     description('Build and deploy nginx-api application to nginx-api-cluster')
     
     properties {
-        githubProjectUrl('https://github.com/YOUR_USERNAME/eks_jenkins')
+        githubProjectUrl('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses')
     }
     
     triggers {
@@ -18,10 +18,10 @@ pipelineJob('nginx-api-build') {
             scm {
                 git {
                     remote {
-                        url('https://github.com/YOUR_USERNAME/eks_jenkins.git')
+                        url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                         credentials('github-credentials')
                     }
-                    branches('*/main')
+                    branches('*/master')
                 }
             }
             scriptPath('jenkins-jobs/nginx-api-build/Jenkinsfile')
@@ -42,10 +42,10 @@ pipelineJob('nginx-docker-build') {
             scm {
                 git {
                     remote {
-                        url('https://github.com/YOUR_USERNAME/eks_jenkins.git')
+                        url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
                         credentials('github-credentials')
                     }
-                    branches('*/main')
+                    branches('*/master')
                 }
             }
             scriptPath('jenkins-jobs/nginx-docker-build/Jenkinsfile')
