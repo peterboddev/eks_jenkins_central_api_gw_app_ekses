@@ -72,8 +72,11 @@ npm install && npm run build
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 cdk bootstrap aws://${AWS_ACCOUNT_ID}/us-west-2
 
-# 3. Deploy infrastructure
+# 3. Deploy infrastructure (creates webhook secret automatically)
 cdk deploy
+
+# Note: This creates the GitHub webhook secret in AWS Secrets Manager
+# Secret name: jenkins/github-webhook-secret
 
 # 4. Configure kubectl
 aws eks update-kubeconfig --name jenkins-eks-cluster --region us-west-2
@@ -110,6 +113,10 @@ Open http://localhost:8080 and complete Jenkins setup.
 **When**: After Jenkins is deployed and accessible via ALB (step 10 complete)
 
 **Why**: Enables instant build triggers when you push code to GitHub
+
+**Prerequisites**: 
+- ✅ CDK stack deployed (step 3) - this created the webhook secret
+- ✅ Jenkins running and accessible (step 10)
 
 **Setup**:
 
@@ -148,6 +155,12 @@ echo "Go to: https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses
 **Result**: Builds trigger instantly when you push code (no 5-minute polling delay)
 
 **Troubleshooting**: See [docs/guides/GITHUB_WEBHOOK_SETUP.md](docs/guides/GITHUB_WEBHOOK_SETUP.md) for detailed setup and troubleshooting
+
+**Note for existing deployments**: If you deployed before the webhook secret was added to CDK, you need to update your stack:
+```bash
+npm run build && cdk deploy
+```
+See [docs/guides/UPDATE_STACK_FOR_WEBHOOK.md](docs/guides/UPDATE_STACK_FOR_WEBHOOK.md) for details.
 
 See [QUICK_START.md](QUICK_START.md) for detailed instructions.
 
