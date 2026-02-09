@@ -2,19 +2,38 @@
 
 ## 5-Minute Setup
 
-### 1. Generate Webhook Secret
+### 1. Generate and Store Webhook Secret
+
+**Option A: AWS Secrets Manager (Recommended for Production)**
 
 ```bash
+# Generate secret
+SECRET=$(openssl rand -hex 32)
+
+# Store in AWS Secrets Manager
+aws secretsmanager create-secret \
+  --name jenkins/github-webhook-secret \
+  --description "GitHub webhook secret for Jenkins CI/CD" \
+  --secret-string "$SECRET" \
+  --region us-west-2
+
+# Retrieve it later when needed
+aws secretsmanager get-secret-value \
+  --secret-id jenkins/github-webhook-secret \
+  --region us-west-2 \
+  --query SecretString \
+  --output text
+```
+
+**Option B: Local Documentation (Development Only)**
+
+For development/testing, you can store it locally in `access_details/CURRENT_ACCESS.md` (gitignored):
+```bash
 openssl rand -hex 32
+# Copy output and paste in access_details/CURRENT_ACCESS.md
 ```
 
-**Save this secret!** You'll need it for both GitHub and Jenkins.
-
-Store it in `access_details/CURRENT_ACCESS.md`:
-```markdown
-## GitHub Webhook Secret
-<your-generated-secret>
-```
+**⚠️ Important**: For production, always use AWS Secrets Manager!
 
 ### 2. Get Jenkins URL
 
@@ -41,7 +60,23 @@ Copy the output (e.g., `k8s-jenkins-jenkins-abc123-1234567890.us-west-2.elb.amaz
 
 ### 4. Configure Jenkins to Validate Secret
 
-Jenkins needs to be configured to validate the webhook secret. This requires the GitHub plugin configuration:
+Jenkins needs to retrieve the secret from AWS Secrets Manager and validate webhook requests.
+
+**Retrieve secret from AWS Secrets Manager:**
+
+```bash
+# Get the secret value
+SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id jenkins/github-webhook-secret \
+  --region us-west-2 \
+  --query SecretString \
+  --output text)
+
+# Create Kubernetes secret from AWS Secrets Manager value
+kubectl create secret generic github-webhook-secret \
+  --from-literal=secret="$SECRET" \
+  -n jenkins
+```
 
 **Option A: Via Jenkins UI (Quick)**
 1. Go to Jenkins → Manage Jenkins → Configure System

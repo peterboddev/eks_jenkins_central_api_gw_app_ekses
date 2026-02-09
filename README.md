@@ -110,8 +110,13 @@ Open http://localhost:8080 and complete Jenkins setup.
 After Jenkins is deployed, set up the GitHub webhook for instant build triggers:
 
 ```bash
-# 1. Generate a webhook secret
-openssl rand -hex 32
+# 1. Generate and store webhook secret in AWS Secrets Manager
+SECRET=$(openssl rand -hex 32)
+aws secretsmanager create-secret \
+  --name jenkins/github-webhook-secret \
+  --description "GitHub webhook secret for Jenkins CI/CD" \
+  --secret-string "$SECRET" \
+  --region us-west-2
 
 # 2. Get Jenkins ALB URL
 kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
@@ -122,7 +127,8 @@ kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingres
 # 4. Add webhook:
 # - Payload URL: http://<ALB_URL>/github-webhook/
 # - Content type: application/json
-# - Secret: <paste the generated secret from step 1>
+# - Secret: Get from AWS Secrets Manager:
+#   aws secretsmanager get-secret-value --secret-id jenkins/github-webhook-secret --region us-west-2 --query SecretString --output text
 # - Events: Just the push event
 # - Active: ✓ Checked
 
@@ -131,7 +137,7 @@ kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingres
 # 6. Test by pushing code - builds trigger instantly!
 ```
 
-**Important**: Store the webhook secret securely in `access_details/CURRENT_ACCESS.md` (gitignored).
+**Important**: Secrets are stored in AWS Secrets Manager for production security.
 
 **Detailed guide**: [docs/guides/WEBHOOK_QUICK_START.md](docs/guides/WEBHOOK_QUICK_START.md)
 

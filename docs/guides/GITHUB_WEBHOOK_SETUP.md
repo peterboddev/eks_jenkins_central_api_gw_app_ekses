@@ -61,20 +61,48 @@ http://k8s-jenkins-jenkins-abc123def456-1234567890.us-west-2.elb.amazonaws.com
 
 ## Step 2: Configure GitHub Webhook
 
-### Generate Webhook Secret (Required)
+### Generate and Store Webhook Secret (Required)
+
+**Recommended: AWS Secrets Manager (Production)**
 
 ```bash
 # Generate a secure random secret
+SECRET=$(openssl rand -hex 32)
+
+# Store in AWS Secrets Manager
+aws secretsmanager create-secret \
+  --name jenkins/github-webhook-secret \
+  --description "GitHub webhook secret for Jenkins CI/CD" \
+  --secret-string "$SECRET" \
+  --region us-west-2 \
+  --tags Key=Project,Value=Jenkins Key=Environment,Value=Production
+
+# Retrieve it when needed
+aws secretsmanager get-secret-value \
+  --secret-id jenkins/github-webhook-secret \
+  --region us-west-2 \
+  --query SecretString \
+  --output text
+```
+
+**Benefits of AWS Secrets Manager:**
+- ✅ Centralized secret management
+- ✅ Automatic rotation support
+- ✅ Audit logging (CloudTrail)
+- ✅ Fine-grained IAM access control
+- ✅ Encryption at rest (KMS)
+- ✅ Version history
+- ✅ Cross-account access support
+
+**Alternative: Local Storage (Development Only)**
+
+For development/testing only, store in `access_details/CURRENT_ACCESS.md` (gitignored):
+```bash
 openssl rand -hex 32
+# Copy output to access_details/CURRENT_ACCESS.md
 ```
 
-**Important**: Save this secret securely! You'll need it for both GitHub and Jenkins.
-
-Store it in `access_details/CURRENT_ACCESS.md` (gitignored):
-```markdown
-## GitHub Webhook Secret
-<your-generated-secret-here>
-```
+**⚠️ Never commit secrets to git!**
 
 ### In GitHub Repository Settings:
 
@@ -101,7 +129,16 @@ Store it in `access_details/CURRENT_ACCESS.md` (gitignored):
 
    **Secret:** (REQUIRED for security)
    ```
-   <paste your generated secret from above>
+   <paste secret from AWS Secrets Manager>
+   ```
+   
+   To get the secret:
+   ```bash
+   aws secretsmanager get-secret-value \
+     --secret-id jenkins/github-webhook-secret \
+     --region us-west-2 \
+     --query SecretString \
+     --output text
    ```
 
    **Which events would you like to trigger this webhook?**
@@ -145,11 +182,33 @@ This approach stores the configuration as code and is more maintainable.
 **1. Create Kubernetes Secret:**
 
 ```bash
-# Replace <YOUR_SECRET> with your generated secret
+# Retrieve secret from AWS Secrets Manager
+SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id jenkins/github-webhook-secret \
+  --region us-west-2 \
+  --query SecretString \
+  --output text)
+
+# Create Kubernetes secret
 kubectl create secret generic github-webhook-secret \
-  --from-literal=secret=<YOUR_SECRET> \
+  --from-literal=secret="$SECRET" \
   -n jenkins
 ```
+
+**Alternative: Use AWS Secrets Manager CSI Driver (Advanced)**
+
+For automatic secret rotation, use the AWS Secrets and Configuration Provider (ASCP):
+
+```bash
+# Install Secrets Store CSI Driver
+helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver --namespace kube-system
+
+# Install AWS Provider
+kubectl apply -f https://raw.githubusercontent.com/aws/secrets-store-csi-driver-provider-aws/main/deployment/aws-provider-installer.yaml
+```
+
+Then mount the secret directly from Secrets Manager in your Jenkins pod.
 
 **2. Update Jenkins ConfigMap:**
 
