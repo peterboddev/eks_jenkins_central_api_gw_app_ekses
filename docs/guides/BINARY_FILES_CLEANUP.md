@@ -61,8 +61,9 @@ kubeconfig        (varies)
 - **Status**: **NOT NEEDED** - Jenkins Configuration as Code handles this
 
 ### kubectl-layer.zip (Lambda Layer)
-- **Purpose**: Unknown/unused
-- **Status**: **NOT NEEDED** - Not referenced anywhere
+- **Purpose**: Minimal Lambda layer for nginx-api-cluster CDK stack
+- **Status**: **AUTO-GENERATED** - Created automatically during `npm run build`
+- **Details**: See [KUBECTL_LAYER_AUTOMATION.md](KUBECTL_LAYER_AUTOMATION.md)
 
 ### kubeconfig (Kubernetes Config)
 - **Purpose**: Kubernetes cluster authentication

@@ -125,7 +125,7 @@ export class NginxApiClusterStack extends cdk.Stack {
     // Create EKS cluster
     // Use a minimal kubectl layer - CDK will provision the actual kubectl functionality
     const kubectlLayer = new lambda.LayerVersion(this, 'KubectlLayer', {
-      code: lambda.Code.fromAsset('kubectl-layer.zip'),
+      code: lambda.Code.fromAsset('nginx-api/tmp/kubectl-layer.zip'),
       compatibleRuntimes: [
         lambda.Runtime.PYTHON_3_13,
         lambda.Runtime.PYTHON_3_12,

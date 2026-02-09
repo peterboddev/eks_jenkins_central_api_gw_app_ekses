@@ -60,7 +60,7 @@ A complete, production-ready Jenkins CI/CD platform deployed on Amazon EKS with 
 - AWS account with appropriate IAM permissions
 - AWS CLI configured with credentials: `aws configure`
 
-**Note:** Do not commit binary tools (.exe, .zip, .jar) to git. Install them locally using package managers (chocolatey, brew, apt, etc.)
+**Note:** Binary files like `kubectl-layer.zip` are auto-generated during build and excluded from git. Do not commit binary tools (.exe, .zip, .jar) to the repository.
 
 ### Deploy in 11 Steps (~90 minutes)
 

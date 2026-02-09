@@ -21,7 +21,9 @@ security/
 *.zip
 *.jar
 kubeconfig
-kubectl-layer.zip
+
+# Temporary build artifacts
+tmp/
 
 # Sensitive test files with hardcoded credentials
 jenkins-test-jobs/
