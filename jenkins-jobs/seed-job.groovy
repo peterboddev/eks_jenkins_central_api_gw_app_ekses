@@ -19,7 +19,6 @@ pipelineJob('nginx-api-build') {
                 git {
                     remote {
                         url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
-                        credentials('github-credentials')
                     }
                     branches('*/main')
                 }
@@ -43,7 +42,6 @@ pipelineJob('nginx-docker-build') {
                 git {
                     remote {
                         url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
-                        credentials('github-credentials')
                     }
                     branches('*/main')
                 }

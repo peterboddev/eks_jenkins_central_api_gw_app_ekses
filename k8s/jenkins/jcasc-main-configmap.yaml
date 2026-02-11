@@ -1,0 +1,134 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc-main
+  namespace: jenkins
+  labels:
+    app: jenkins
+    jenkins-jenkins-config: "true"
+data:
+  jenkins.yaml: |
+    jenkins:
+      systemMessage: "Jenkins configured automatically by Jenkins Configuration as Code"
+      
+      # Security realm - allow admin user
+      securityRealm:
+        local:
+          allowsSignup: false
+          users:
+            - id: "admin"
+              password: "${JENKINS_ADMIN_PASSWORD}"
+      
+      # Authorization - admin has full access
+      authorizationStrategy:
+        loggedInUsersCanDoAnything:
+          allowAnonymousRead: false
+      
+      # Disable setup wizard
+      disableRememberMe: false
+      mode: NORMAL
+      numExecutors: 0
+      
+      # Configure clouds for Kubernetes agents
+      clouds:
+        - kubernetes:
+            name: "kubernetes"
+            serverUrl: "https://kubernetes.default"
+            namespace: "jenkins"
+            jenkinsUrl: "http://jenkins:8080"
+            jenkinsTunnel: "jenkins:50000"
+            connectTimeout: 5
+            readTimeout: 15
+            containerCapStr: "10"
+            maxRequestsPerHostStr: "32"
+            retentionTimeout: 5
+            
+            templates:
+              - name: "jenkins-agent"
+                namespace: "jenkins"
+                label: "jenkins-agent"
+                nodeUsageMode: NORMAL
+                containers:
+                  - name: "jnlp"
+                    image: "jenkins/inbound-agent:latest"
+                    alwaysPullImage: false
+                    workingDir: "/home/jenkins/agent"
+                    ttyEnabled: true
+                    resourceRequestCpu: "1000m"
+                    resourceRequestMemory: "2Gi"
+                    resourceLimitCpu: "2000m"
+                    resourceLimitMemory: "4Gi"
+    
+    # Credentials - pull from AWS Secrets Manager
+    credentials:
+      system:
+        domainCredentials:
+          - credentials:
+              - string:
+                  scope: GLOBAL
+                  id: "github-webhook-secret"
+                  secret: "${GITHUB_WEBHOOK_SECRET}"
+                  description: "GitHub webhook secret for validating webhook requests"
+    
+    # Configure tools
+    tool:
+      git:
+        installations:
+          - name: "Default"
+            home: "git"
+    
+    # Unclassified settings
+    unclassified:
+      location:
+        url: "http://jenkins:8080/"
+      
+      # GitHub plugin configuration
+      gitHubPluginConfig:
+        hookUrl: "http://jenkins:8080/github-webhook/"
+      
+      # Global pipeline libraries (optional)
+      globalLibraries:
+        libraries:
+          - name: "shared-library"
+            defaultVersion: "main"
+            retriever:
+              modernSCM:
+                scm:
+                  git:
+                    remote: "https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git"
+    
+    # Job DSL seed job configuration
+    jobs:
+      - script: >
+          job('seed-job') {
+            description('Seed job that creates all other Jenkins jobs from Job DSL scripts in Git')
+            
+            scm {
+              git {
+                remote {
+                  url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
+                }
+                branches('*/main')
+              }
+            }
+            
+            triggers {
+              scm('H/5 * * * *')
+            }
+            
+            steps {
+              dsl {
+                external('jenkins-jobs/seed-job.groovy')
+                removeAction('DELETE')
+                removeViewAction('DELETE')
+                ignoreExisting(false)
+                ignoreMissingFiles(false)
+              }
+            }
+            
+            wrappers {
+              timestamps()
+            }
+          }
+      - script: >
+          queue('seed-job')
