@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc-seed-job
+  namespace: jenkins
+  labels:
+    app: jenkins
+    jenkins-jenkins-config: "true"
+data:
+  seed-job.yaml: |
+    jobs:
+      - script: >
+          job('seed-job') {
+            description('Seed job that creates all other Jenkins jobs from Job DSL scripts')
+            
+            scm {
+              git {
+                remote {
+                  url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
+                }
+                branches('*/main')
+              }
+            }
+            
+            triggers {
+              scm('H/5 * * * *')
+            }
+            
+            steps {
+              dsl {
+                external('jenkins-jobs/seed-job.groovy')
+                removeAction('DELETE')
+                removeViewAction('DELETE')
+              }
+            }
+          }

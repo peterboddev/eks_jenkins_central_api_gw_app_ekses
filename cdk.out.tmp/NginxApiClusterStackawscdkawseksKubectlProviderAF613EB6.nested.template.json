@@ -1,0 +1,294 @@
+{
+ "Resources": {
+  "Handler886CB40B": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-west-2",
+     "S3Key": "d671460286b61f85906debbcec5341ea4edad148fbc432b0663593611866728e.zip"
+    },
+    "Description": "onEvent handler for EKS kubectl resource provider",
+    "Environment": {
+     "Variables": {
+      "AWS_STS_REGIONAL_ENDPOINTS": "regional"
+     }
+    },
+    "Handler": "index.handler",
+    "Layers": [
+     {
+      "Ref": "AwsCliLayerF44AAF94"
+     },
+     {
+      "Ref": "referencetoNginxApiClusterStackKubectlLayerCAE4174ARef"
+     }
+    ],
+    "MemorySize": 1024,
+    "Role": {
+     "Ref": "referencetoNginxApiClusterStackClusterKubectlHandlerRoleC00976B7Arn"
+    },
+    "Runtime": "python3.13",
+    "Timeout": 900,
+    "VpcConfig": {
+     "SecurityGroupIds": [
+      {
+       "Ref": "referencetoNginxApiClusterStackClusterE83207E7ClusterSecurityGroupId"
+      }
+     ],
+     "SubnetIds": [
+      {
+       "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet1Subnet1174CD0B767F3D15"
+      },
+      {
+       "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet2SubnetD6B4249DE818A381"
+      }
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/Handler/Resource",
+    "aws:asset:path": "asset.d671460286b61f85906debbcec5341ea4edad148fbc432b0663593611866728e",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "HandlerLogGroup50A7B41D": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": {
+     "Fn::Join": [
+      "",
+      [
+       "/aws/lambda/",
+       {
+        "Ref": "Handler886CB40B"
+       }
+      ]
+     ]
+    },
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/Handler/LogGroup/Resource"
+   }
+  },
+  "AwsCliLayerF44AAF94": {
+   "Type": "AWS::Lambda::LayerVersion",
+   "Properties": {
+    "Content": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-west-2",
+     "S3Key": "0cfdecad2260a3a84ad0c2d08a77e03c9d25e26c7b52f26b1e1faf97aef92f18.zip"
+    },
+    "Description": "/opt/awscli/aws"
+   },
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/AwsCliLayer/Resource",
+    "aws:asset:path": "asset.0cfdecad2260a3a84ad0c2d08a77e03c9d25e26c7b52f26b1e1faf97aef92f18.zip",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Content"
+   }
+  },
+  "ProviderframeworkonEventServiceRole9FF04296": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/Provider/framework-onEvent/ServiceRole/Resource"
+   }
+  },
+  "ProviderframeworkonEventServiceRoleDefaultPolicy48CD2133": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "lambda:InvokeFunction",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "Handler886CB40B",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "Handler886CB40B",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": "lambda:GetFunction",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "Handler886CB40B",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ProviderframeworkonEventServiceRoleDefaultPolicy48CD2133",
+    "Roles": [
+     {
+      "Ref": "ProviderframeworkonEventServiceRole9FF04296"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/Provider/framework-onEvent/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ProviderframeworkonEvent83C1D0A7": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-west-2",
+     "S3Key": "07a90cc3efdfc34da22208dcd9d211f06f5b0e01b21e778edc7c3966b1f61d57.zip"
+    },
+    "Description": "AWS CDK resource provider framework - onEvent (NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/Provider)",
+    "Environment": {
+     "Variables": {
+      "USER_ON_EVENT_FUNCTION_ARN": {
+       "Fn::GetAtt": [
+        "Handler886CB40B",
+        "Arn"
+       ]
+      }
+     }
+    },
+    "Handler": "framework.onEvent",
+    "LoggingConfig": {
+     "ApplicationLogLevel": "FATAL",
+     "LogFormat": "JSON"
+    },
+    "Role": {
+     "Fn::GetAtt": [
+      "ProviderframeworkonEventServiceRole9FF04296",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Timeout": 900,
+    "VpcConfig": {
+     "SecurityGroupIds": [
+      {
+       "Ref": "referencetoNginxApiClusterStackClusterE83207E7ClusterSecurityGroupId"
+      }
+     ],
+     "SubnetIds": [
+      {
+       "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet1Subnet1174CD0B767F3D15"
+      },
+      {
+       "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet2SubnetD6B4249DE818A381"
+      }
+     ]
+    }
+   },
+   "DependsOn": [
+    "ProviderframeworkonEventServiceRoleDefaultPolicy48CD2133",
+    "ProviderframeworkonEventServiceRole9FF04296"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/Provider/framework-onEvent/Resource",
+    "aws:asset:path": "asset.07a90cc3efdfc34da22208dcd9d211f06f5b0e01b21e778edc7c3966b1f61d57",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ProviderframeworkonEventLogGroup683073A3": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": {
+     "Fn::Join": [
+      "",
+      [
+       "/aws/lambda/",
+       {
+        "Ref": "ProviderframeworkonEvent83C1D0A7"
+       }
+      ]
+     ]
+    },
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/Provider/framework-onEvent/LogGroup/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/41UUW/aMBD+LfUjMh6Dh028hapM21CHAPUFIWTsa+ri2JHPAbEo/32yk9C0QLUn29/57rv77uwhG46+s8EdP2JfyH1fqx0r+RG3JeyR/S52ILyeO3tQEhzVPNtJzsppYYRX1qxL4lUGtvBkTHqEEgkonMqDrUEyyKw7LdVfaAAwB+WsycC0Ts7q1njIRbNDEIVT/vTD2SJHMl6THtnEC8tiZ8AjGZcE2+06+vTIpqJEWNmGe+FGanAtT2FCtvFU0ZJwKR+6yXSCROOMn8C11LewDttl8V3Gj9m8F07bNFUmnVqX8YD9Wv55JJTwPNdK8BByZtMZHEA/DcmYTJNVMqvdokAX8v2HTjcU7nTjuWnzI8+udO/BCHd6q/ZzRTf0/tm0YxP2UcgncKisqSiOthwRPLIkLBRHbFKIPfgJR6DapsjKWVPrujyXfU4skF+CkbR1q6jiGSsXVsO6JByxyEBOTkGe3CkjVM51IoQtznNZ3wkOieiUSTJueApybrUSCoJy5TvslLg3Sa4b2nFa2XnLXd8IwRqr91y8/DRaGTjbzpP4qfF23KhIqIjWcGxQG25lF7H3H1guYSmXnnsIPcZOwlfgyFdTVRWNvV16Hia9+Uu2OszBlh9RaMWSI95rFUcjuNMFoC2cACoK9DbbuuaMrP2SKmqsBPaKXw7DAfv6jQ3uXlGpfvPy2KJe/wHdI9c+5wQAAA=="
+   },
+   "Metadata": {
+    "aws:cdk:path": "NginxApiClusterStack/@aws-cdk--aws-eks.KubectlProvider/CDKMetadata/Default"
+   }
+  }
+ },
+ "Parameters": {
+  "referencetoNginxApiClusterStackKubectlLayerCAE4174ARef": {
+   "Type": "String"
+  },
+  "referencetoNginxApiClusterStackClusterKubectlHandlerRoleC00976B7Arn": {
+   "Type": "String"
+  },
+  "referencetoNginxApiClusterStackClusterE83207E7ClusterSecurityGroupId": {
+   "Type": "String"
+  }
+ }
+}

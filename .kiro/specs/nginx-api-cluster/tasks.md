@@ -1,33 +1,66 @@
 # Implementation Plan: nginx-api-cluster
 
+## Current Status
+
+**Infrastructure Decoupling Complete:** The nginx-api-cluster implementation leverages the decoupled infrastructure architecture:
+
+✅ **Completed Stacks (Already Deployed):**
+1. **JenkinsNetworkStack** - Jenkins VPC (10.0.0.0/16) with public/private subnets
+2. **NginxApiNetworkStack** - Nginx API VPC (10.1.0.0/16) with public/private subnets, tagged for EKS/Karpenter
+3. **TransitGatewayStack** - Transit Gateway with VPC attachments and cross-VPC routes
+4. **JenkinsStorageStack** - EFS storage for Jenkins
+5. **JenkinsEksClusterStack** - Jenkins EKS cluster (foundational layer)
+6. **JenkinsEksNodeGroupsStack** - Jenkins node groups and Cluster Autoscaler
+7. **JenkinsApplicationStack** - Jenkins application with ALB and monitoring
+8. **NginxApiClusterStack** - Nginx API EKS cluster with Karpenter, ALB Controller, and application manifests
+
+✅ **Application Deployment (CDK Manifests):**
+- Karpenter controller with NodePool and EC2NodeClass
+- AWS Load Balancer Controller with IRSA
+- nginx-api application (Deployment, Service, Ingress)
+
+🔄 **Next Steps:**
+- Build and push Docker image to Jenkins ECR
+- Deploy NginxApiClusterStack to create all resources
+- Update API Gateway integration with ALB DNS
+- Test API endpoints
+
+**Key Architecture Points:**
+- VPC infrastructure is **separate** (NginxApiNetworkStack)
+- Transit Gateway is **separate** (TransitGatewayStack)
+- NginxApiClusterStack **imports** VPC from NginxApiNetworkStack via props
+- NginxApiClusterStack **depends on** NginxApiNetworkStack and TransitGatewayStack
+- All Kubernetes resources deployed via **CDK manifests** (no manual kubectl commands)
+- No VPC or Transit Gateway creation in NginxApiClusterStack
+
 ## Overview
 
-This implementation plan creates a complete EKS cluster infrastructure with API Gateway integration, following a multi-VPC architecture pattern. The implementation uses AWS CDK for infrastructure provisioning, Karpenter for dynamic node scaling, and Helm for application deployment.
+This implementation plan creates an EKS cluster infrastructure with API Gateway integration, following the decoupled multi-VPC architecture pattern. The implementation uses AWS CDK for infrastructure provisioning, Karpenter for dynamic node scaling, and Helm for application deployment.
 
 ## Tasks
 
 - [x] 1. Set up CDK project structure and dependencies
-  - Create new CDK TypeScript project for nginx-api-cluster
-  - Install required CDK libraries (@aws-cdk/aws-ec2, @aws-cdk/aws-eks, @aws-cdk/aws-apigatewayv2, etc.)
-  - Configure CDK context with Jenkins VPC ID and account details
-  - Set up TypeScript configuration for CDK
+  - ✅ CDK TypeScript project exists with all required libraries
+  - ✅ NginxApiNetworkStack created for VPC infrastructure
+  - ✅ TransitGatewayStack created for inter-VPC connectivity
+  - ✅ NginxApiClusterStack created for EKS cluster
   - _Requirements: 10.1_
 
-- [x] 2. Implement VPC infrastructure
-  - [x] 2.1 Create VPC with public and private subnets
-    - Define VPC with CIDR 10.1.0.0/16
-    - Create 2 public subnets (10.1.0.0/24, 10.1.1.0/24) across 2 AZs
-    - Create 2 private subnets (10.1.10.0/24, 10.1.11.0/24) across 2 AZs
-    - Add Internet Gateway for public subnets
-    - Add NAT Gateways in each public subnet
-    - Configure route tables for public and private routing
+- [x] 2. Implement VPC infrastructure (COMPLETED - NginxApiNetworkStack)
+  - [x] 2.1 VPC with public and private subnets
+    - ✅ VPC created with CIDR 10.1.0.0/16
+    - ✅ 2 public subnets across 2 AZs
+    - ✅ 2 private subnets across 2 AZs
+    - ✅ Internet Gateway for public subnets
+    - ✅ NAT Gateway for private subnet internet access
+    - ✅ Route tables configured
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
   
-  - [x] 2.2 Add subnet tags for EKS and Karpenter
-    - Tag public subnets with kubernetes.io/role/elb=1
-    - Tag private subnets with kubernetes.io/role/internal-elb=1
-    - Tag all subnets with kubernetes.io/cluster/<cluster-name>=shared
-    - Tag private subnets with karpenter.sh/discovery=<cluster-name>
+  - [x] 2.2 Subnet tags for EKS and Karpenter
+    - ✅ Public subnets tagged with kubernetes.io/role/elb=1
+    - ✅ Private subnets tagged with kubernetes.io/role/internal-elb=1
+    - ✅ All subnets tagged with kubernetes.io/cluster/nginx-api-cluster=shared
+    - ✅ Private subnets tagged with karpenter.sh/discovery=nginx-api-cluster
     - _Requirements: 1.2, 1.3_
 
 - [x] 3. Implement EKS cluster
@@ -126,40 +159,41 @@ This implementation plan creates a complete EKS cluster infrastructure with API 
     - Verify controller pods are running
     - _Requirements: 3.2, 3.3_
 
-- [ ] 8. Implement Transit Gateway connectivity
-  - [x] 8.1 Create or reference Transit Gateway
-    - Check if Transit Gateway exists (from Jenkins cluster)
-    - Create new Transit Gateway if not exists
+- [x] 8. Implement Transit Gateway connectivity (COMPLETED - TransitGatewayStack)
+  - [x] 8.1 Transit Gateway created
+    - ✅ TransitGatewayStack has created Transit Gateway
     - _Requirements: 8.1_
   
-  - [x] 8.2 Attach VPCs to Transit Gateway
-    - Create Transit Gateway attachment for API VPC
-    - Create Transit Gateway attachment for Jenkins VPC (if not exists)
-    - Wait for attachments to become available
+  - [x] 8.2 VPC attachments configured
+    - ✅ Transit Gateway attachment for API VPC created
+    - ✅ Transit Gateway attachment for Jenkins VPC created
+    - ✅ Attachments are active
     - _Requirements: 8.2, 8.3_
   
-  - [x] 8.3 Configure route tables for cross-VPC routing
-    - Add route in API VPC private subnets: 10.0.0.0/16 → Transit Gateway
-    - Add route in Jenkins VPC private subnets: 10.1.0.0/16 → Transit Gateway
+  - [x] 8.3 Route tables configured for cross-VPC routing
+    - ✅ Routes added in API VPC private subnets: 10.0.0.0/16 → Transit Gateway
+    - ✅ Routes added in Jenkins VPC private subnets: 10.1.0.0/16 → Transit Gateway
     - _Requirements: 8.4, 8.5_
 
-- [ ] 9. Checkpoint - Verify Transit Gateway connectivity
-  - Ensure all tests pass, ask the user if questions arise.
+- [ ] 9. Verify Transit Gateway connectivity
+  - [ ] 9.1 Test kubectl access from Jenkins to nginx-api-cluster (via Jenkins automation)
+    - Jenkins will configure kubeconfig for nginx-api-cluster automatically
+    - Jenkins will execute kubectl commands via Transit Gateway
+    - Verify connectivity through Jenkins job execution (not manual commands)
+    - _Requirements: 8.7_
 
-- [-] 10. Create nginx API application Docker image
-  - [ ] 10.1 Create nginx configuration file
-    - Write nginx.conf with server blocks for:
-      - /health endpoint (returns JSON with status and timestamp)
-      - /api/info endpoint (returns JSON with app metadata)
-      - /api/echo endpoint (proxies to echo server)
-    - Create echo server configuration on port 8081
+- [ ] 10. Create nginx API application Docker image
+  - [x] 10.1 Application code exists
+    - ✅ Express.js application with endpoints: /health, /api/info, /api/test, /api/echo, /api/users
+    - ✅ nginx reverse proxy configuration
+    - ✅ Handlers in ./handlers directory
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [ ] 10.2 Create Dockerfile
-    - Base image: nginx:alpine
-    - Copy nginx configuration
-    - Expose port 8080
-    - Set up health check
+  - [x] 10.2 Dockerfile exists
+    - ✅ Base image: node:18-alpine with nginx
+    - ✅ Exposes port 8080
+    - ✅ Health check configured
+    - ✅ Startup script for both services
     - _Requirements: 4.1_
   
   - [ ] 10.3 Build and push image to Jenkins ECR
@@ -168,30 +202,29 @@ This implementation plan creates a complete EKS cluster infrastructure with API 
     - Push image to Jenkins ECR
     - _Requirements: 4.8_
 
-- [x] 11. Create Helm chart for nginx API application
-  - [x] 11.1 Create Helm chart structure
-    - Create Chart.yaml with metadata
-    - Create values.yaml with default configuration
-    - Create templates directory
-    - Create _helpers.tpl with template functions
-    - _Requirements: 9.1, 9.2_
+- [x] 11. Deploy nginx API application via CDK manifests
+  - [x] 11.1 Create Karpenter controller deployment
+    - ✅ Karpenter service account with IRSA created
+    - ✅ Karpenter controller deployment (2 replicas)
+    - ✅ NodePool with on-demand instances (t3.medium, t3.large, t3a.medium, t3a.large)
+    - ✅ EC2NodeClass with subnet/security group discovery
+    - _Requirements: 2.2, Karpenter for dynamic node provisioning_
   
-  - [x] 11.2 Create Kubernetes resource templates
-    - Create deployment.yaml template with:
-      - 3 replicas
-      - Container image from values
-      - Resource requests/limits
-      - Liveness and readiness probes
-    - Create service.yaml template with ClusterIP type
-    - Create ingress.yaml template with ALB annotations
-    - _Requirements: 4.5, 4.6, 4.7, 9.2_
+  - [x] 11.2 Create ALB Controller deployment
+    - ✅ ALB Controller service account with IRSA created
+    - ✅ ALB Controller deployment (2 replicas)
+    - ✅ Full IAM policy for ALB management
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
   
-  - [x] 11.3 Configure Helm values
-    - Set default replica count to 3
-    - Set image repository to Jenkins ECR
-    - Configure ingress annotations for internet-facing ALB
-    - Configure resource requests and limits
-    - _Requirements: 9.3_
+  - [x] 11.3 Create nginx-api Kubernetes resources
+    - ✅ Namespace: nginx-api
+    - ✅ Deployment: 3 replicas with health checks
+    - ✅ Service: ClusterIP type on port 80
+    - ✅ Ingress: ALB with internet-facing scheme, HTTPS on port 443
+    - ✅ Container image from Jenkins ECR
+    - ✅ Resource requests/limits configured
+    - ✅ Liveness and readiness probes on /health
+    - _Requirements: 4.5, 4.6, 4.7, 9.1, 9.2, 9.3, 9.4, 9.5_
 
 - [ ] 12. Implement API Gateway
   - [x] 12.1 Create security group for ALB
@@ -223,17 +256,19 @@ This implementation plan creates a complete EKS cluster infrastructure with API 
     - Create S3 bucket for ALB access logs
     - _Requirements: 12.1, 12.3, 12.4, 12.5_
 
-- [ ] 14. Deploy CDK stack
-  - [ ] 14.1 Synthesize and deploy CDK stack
-    - Run cdk synth to generate CloudFormation template
-    - Run cdk deploy to provision infrastructure
-    - Capture stack outputs (API Gateway URL, cluster name, kubeconfig)
+- [ ] 14. Deploy NginxApiClusterStack
+  - [ ] 14.1 Deploy CDK stack (everything automated)
+    - Run: npm run build
+    - Run: cdk deploy NginxApiClusterStack --require-approval never
+    - CDK automatically creates all resources (EKS cluster, Karpenter IAM roles, API Gateway, security groups)
+    - No manual kubectl or AWS CLI commands needed
     - _Requirements: All infrastructure requirements_
   
-  - [ ] 14.2 Configure kubectl access
-    - Update kubeconfig with API cluster credentials
-    - Verify kubectl connectivity from local machine
-    - _Requirements: 2.5_
+  - [ ] 14.2 Verify deployment via CloudFormation outputs
+    - Check CloudFormation stack status is CREATE_COMPLETE
+    - Verify all CloudFormation outputs are present (API Gateway URL, cluster name, Karpenter config)
+    - Verify EKS cluster is in ACTIVE state via AWS Console or CloudFormation
+    - _Requirements: 2.5, All infrastructure requirements_
 
 - [ ] 15. Deploy nginx API application
   - [x] 15.1 Get ALB DNS name

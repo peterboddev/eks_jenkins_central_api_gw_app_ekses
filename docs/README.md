@@ -46,6 +46,7 @@ How-to guides for specific features and workflows:
 - **[WORKFLOW_SUMMARY.md](guides/WORKFLOW_SUMMARY.md)** - Development workflow overview
 
 #### Jenkins & CI/CD
+- **[JENKINS_AUTOMATED_DEPLOYMENT.md](guides/JENKINS_AUTOMATED_DEPLOYMENT.md)** - Automated Jenkins deployment via CDK
 - **[WEBHOOK_QUICK_START.md](guides/WEBHOOK_QUICK_START.md)** - GitHub webhook setup (5 minutes)
 - **[GITHUB_WEBHOOK_SETUP.md](guides/GITHUB_WEBHOOK_SETUP.md)** - Comprehensive webhook guide
 - **[JENKINS_AUTOMATED_CONFIG.md](guides/JENKINS_AUTOMATED_CONFIG.md)** - Jenkins automated configuration

@@ -6,7 +6,7 @@ A complete, production-ready Jenkins CI/CD platform deployed on Amazon EKS with 
 
 - **High Availability**: Jenkins controller runs on on-demand instances
 - **Cost Optimization**: Jenkins agents run on spot instances (70% cost savings)
-- **Persistent Storage**: EFS for Jenkins home with automatic backups
+- **Persistent Storage**: EFS for Jenkins home with automated daily backups (30-day retention)
 - **Secure**: IRSA for AWS permissions, private VPC, encryption at rest
 - **Auto-Scaling**: Cluster Autoscaler for dynamic node provisioning
 - **Resilient**: Node Termination Handler for graceful spot interruption handling
@@ -24,7 +24,7 @@ A complete, production-ready Jenkins CI/CD platform deployed on Amazon EKS with 
   - Controller: 1-2 on-demand instances (t3.large/xlarge)
   - Agents: 2-10 spot instances (m5/m5a/m6i large/xlarge)
 - **Storage**:
-  - EFS: Jenkins home directory with encryption and lifecycle management
+  - EFS: Jenkins home directory with encryption, lifecycle management, and automated daily backups (30-day retention)
   - S3: Artifacts with versioning and lifecycle policy
 - **Networking**:
   - 2 NAT Gateways for high availability
@@ -43,6 +43,39 @@ A complete, production-ready Jenkins CI/CD platform deployed on Amazon EKS with 
 - **Fluent Bit**: Log forwarding to CloudWatch
 
 ## 🚀 Quick Start
+
+### CDK Version Requirements
+
+This project uses:
+- **aws-cdk-lib**: 2.238.0 (construct library)
+- **aws-cdk CLI**: 2.1105.0 (command-line tool)
+
+```powershell
+# Install correct global CDK CLI version
+npm install -g aws-cdk@2.1105.0
+```
+
+### Automated Deployment (Recommended)
+
+**Linux/Mac:**
+```bash
+chmod +x scripts/deploy-infrastructure.sh
+./scripts/deploy-infrastructure.sh
+```
+
+**Windows:**
+```powershell
+.\scripts\deploy-infrastructure.ps1
+```
+
+This automated script will deploy all infrastructure in the correct order. See [DEPLOYMENT_QUICK_START.md](DEPLOYMENT_QUICK_START.md) for details.
+
+### Manual Deployment
+
+See the detailed guides:
+- **Quick Start**: [DEPLOYMENT_QUICK_START.md](DEPLOYMENT_QUICK_START.md)
+- **Comprehensive Guide**: [docs/deployment/NETWORK_INFRASTRUCTURE_GUIDE.md](docs/deployment/NETWORK_INFRASTRUCTURE_GUIDE.md)
+- **Scripts Documentation**: [scripts/README.md](scripts/README.md)
 
 ### Prerequisites
 
@@ -294,15 +327,57 @@ View metrics: https://console.aws.amazon.com/cloudwatch/ → Container Insights
 
 ### Backup and Recovery
 
-- **Jenkins Configuration**: Stored on EFS with 30-day retention via AWS Backup
+#### Automated EFS Backup
+
+Jenkins persistent data (configurations, jobs, plugins, build history) is automatically backed up using AWS Backup:
+
+- **Backup Vault**: `jenkins-eks-efs-backup-vault`
+- **Backup Schedule**: Daily at 2 AM UTC
+- **Retention Period**: 30 days
+- **Backup Window**: 1-hour start window, 2-hour completion window
+- **Restore Capability**: Enabled (can restore to new or existing EFS)
+
+**View Backups**:
+```bash
+# List backup vault
+aws backup list-backup-vaults --region us-west-2
+
+# List recovery points
+aws backup list-recovery-points-by-backup-vault \
+  --backup-vault-name jenkins-eks-efs-backup-vault \
+  --region us-west-2
+```
+
+**Restore from Backup**:
+```bash
+# Get EFS file system ID
+EFS_ID=$(aws cloudformation describe-stacks \
+  --stack-name JenkinsEksStack \
+  --query 'Stacks[0].Outputs[?OutputKey==`EfsFileSystemIdOutput`].OutputValue' \
+  --output text \
+  --region us-west-2)
+
+# List available recovery points
+aws backup list-recovery-points-by-resource \
+  --resource-arn arn:aws:elasticfilesystem:us-west-2:${AWS_ACCOUNT_ID}:file-system/${EFS_ID} \
+  --region us-west-2
+
+# Restore from recovery point (use AWS Console or CLI)
+# See: https://docs.aws.amazon.com/aws-backup/latest/devguide/restoring-efs.html
+```
+
+#### Other Backups
+
 - **Artifacts**: Versioned in S3 with 90-day retention
 - **Infrastructure**: Defined as code in CDK (Git repository)
 
-**Recovery Procedure**:
-1. Deploy CDK stack
-2. Restore EFS from AWS Backup
-3. Deploy Kubernetes manifests
-4. Verify Jenkins configuration
+#### Complete Recovery Procedure
+
+1. Deploy CDK stack (creates new EFS)
+2. Restore EFS from AWS Backup recovery point
+3. Update Jenkins PVC to use restored EFS
+4. Deploy Kubernetes manifests
+5. Verify Jenkins configuration and jobs
 
 ## 🔧 Troubleshooting
 

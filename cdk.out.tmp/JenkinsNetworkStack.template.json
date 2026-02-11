@@ -1,0 +1,798 @@
+{
+ "Description": "Jenkins VPC network infrastructure (10.0.0.0/16)",
+ "Resources": {
+  "JenkinsVpc": {
+   "Type": "AWS::EC2::VPC",
+   "Properties": {
+    "CidrBlock": "10.0.0.0/16",
+    "EnableDnsHostnames": true,
+    "EnableDnsSupport": true,
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-vpc"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/JenkinsVpc"
+   }
+  },
+  "PrivateSubnetAzA": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": "us-west-2a",
+    "CidrBlock": "10.0.1.0/24",
+    "MapPublicIpOnLaunch": false,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Private"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-private-subnet-az-a"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateSubnetAzA"
+   }
+  },
+  "PrivateRouteTableAzA": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-private-rt-az-a"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateRouteTableAzA"
+   }
+  },
+  "PrivateSubnetAzARouteTableAssociation": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PrivateRouteTableAzA"
+    },
+    "SubnetId": {
+     "Ref": "PrivateSubnetAzA"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateSubnetAzARouteTableAssociation"
+   }
+  },
+  "PrivateSubnetAzB": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": "us-west-2b",
+    "CidrBlock": "10.0.2.0/24",
+    "MapPublicIpOnLaunch": false,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Private"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-private-subnet-az-b"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateSubnetAzB"
+   }
+  },
+  "PrivateRouteTableAzB": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-private-rt-az-b"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateRouteTableAzB"
+   }
+  },
+  "PrivateSubnetAzBRouteTableAssociation": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PrivateRouteTableAzB"
+    },
+    "SubnetId": {
+     "Ref": "PrivateSubnetAzB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateSubnetAzBRouteTableAssociation"
+   }
+  },
+  "PublicSubnetAzA": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": "us-west-2a",
+    "CidrBlock": "10.0.10.0/24",
+    "MapPublicIpOnLaunch": true,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Public"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-public-subnet-az-a"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster NAT Gateway"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PublicSubnetAzA"
+   }
+  },
+  "InternetGateway": {
+   "Type": "AWS::EC2::InternetGateway",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-igw"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/InternetGateway"
+   }
+  },
+  "VpcGatewayAttachment": {
+   "Type": "AWS::EC2::VPCGatewayAttachment",
+   "Properties": {
+    "InternetGatewayId": {
+     "Ref": "InternetGateway"
+    },
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/VpcGatewayAttachment"
+   }
+  },
+  "PublicRouteTable": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-public-rt"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PublicRouteTable"
+   }
+  },
+  "PublicRoute": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "GatewayId": {
+     "Ref": "InternetGateway"
+    },
+    "RouteTableId": {
+     "Ref": "PublicRouteTable"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PublicRoute"
+   }
+  },
+  "PublicSubnetAzARouteTableAssociation": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PublicRouteTable"
+    },
+    "SubnetId": {
+     "Ref": "PublicSubnetAzA"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PublicSubnetAzARouteTableAssociation"
+   }
+  },
+  "NatGatewayEipAzA": {
+   "Type": "AWS::EC2::EIP",
+   "Properties": {
+    "Domain": "vpc",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-nat-eip-az-a"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster NAT Gateway"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/NatGatewayEipAzA"
+   }
+  },
+  "NatGatewayAzA": {
+   "Type": "AWS::EC2::NatGateway",
+   "Properties": {
+    "AllocationId": {
+     "Fn::GetAtt": [
+      "NatGatewayEipAzA",
+      "AllocationId"
+     ]
+    },
+    "SubnetId": {
+     "Ref": "PublicSubnetAzA"
+    },
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-nat-gateway-az-a"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/NatGatewayAzA"
+   }
+  },
+  "PrivateRouteAzA": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "NatGatewayId": {
+     "Ref": "NatGatewayAzA"
+    },
+    "RouteTableId": {
+     "Ref": "PrivateRouteTableAzA"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateRouteAzA"
+   }
+  },
+  "PublicSubnetAzB": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": "us-west-2b",
+    "CidrBlock": "10.0.11.0/24",
+    "MapPublicIpOnLaunch": true,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Public"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-public-subnet-az-b"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster NAT Gateway"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PublicSubnetAzB"
+   }
+  },
+  "PublicSubnetAzBRouteTableAssociation": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PublicRouteTable"
+    },
+    "SubnetId": {
+     "Ref": "PublicSubnetAzB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PublicSubnetAzBRouteTableAssociation"
+   }
+  },
+  "NatGatewayEipAzB": {
+   "Type": "AWS::EC2::EIP",
+   "Properties": {
+    "Domain": "vpc",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-nat-eip-az-b"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster NAT Gateway"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/NatGatewayEipAzB"
+   }
+  },
+  "NatGatewayAzB": {
+   "Type": "AWS::EC2::NatGateway",
+   "Properties": {
+    "AllocationId": {
+     "Fn::GetAtt": [
+      "NatGatewayEipAzB",
+      "AllocationId"
+     ]
+    },
+    "SubnetId": {
+     "Ref": "PublicSubnetAzB"
+    },
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-nat-gateway-az-b"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/NatGatewayAzB"
+   }
+  },
+  "PrivateRouteAzB": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "NatGatewayId": {
+     "Ref": "NatGatewayAzB"
+    },
+    "RouteTableId": {
+     "Ref": "PrivateRouteTableAzB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/PrivateRouteAzB"
+   }
+  },
+  "VpcEndpointSecurityGroup": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Security group for VPC endpoints",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic",
+      "IpProtocol": "-1"
+     }
+    ],
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "10.0.0.0/16",
+      "Description": "Allow HTTPS from VPC",
+      "FromPort": 443,
+      "IpProtocol": "tcp",
+      "ToPort": 443
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-vpc-endpoint-sg"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster VPC Endpoints"
+     }
+    ],
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/VpcEndpointSecurityGroup"
+   }
+  },
+  "S3GatewayEndpoint": {
+   "Type": "AWS::EC2::VPCEndpoint",
+   "Properties": {
+    "RouteTableIds": [
+     {
+      "Ref": "PrivateRouteTableAzA"
+     },
+     {
+      "Ref": "PrivateRouteTableAzB"
+     }
+    ],
+    "ServiceName": "com.amazonaws.us-west-2.s3",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-s3-gateway-endpoint"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcEndpointType": "Gateway",
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/S3GatewayEndpoint"
+   }
+  },
+  "EcrApiEndpoint": {
+   "Type": "AWS::EC2::VPCEndpoint",
+   "Properties": {
+    "PrivateDnsEnabled": true,
+    "SecurityGroupIds": [
+     {
+      "Ref": "VpcEndpointSecurityGroup"
+     }
+    ],
+    "ServiceName": "com.amazonaws.us-west-2.ecr.api",
+    "SubnetIds": [
+     {
+      "Ref": "PrivateSubnetAzA"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-ecr-api-endpoint"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcEndpointType": "Interface",
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/EcrApiEndpoint"
+   }
+  },
+  "EcrDockerEndpoint": {
+   "Type": "AWS::EC2::VPCEndpoint",
+   "Properties": {
+    "PrivateDnsEnabled": true,
+    "SecurityGroupIds": [
+     {
+      "Ref": "VpcEndpointSecurityGroup"
+     }
+    ],
+    "ServiceName": "com.amazonaws.us-west-2.ecr.dkr",
+    "SubnetIds": [
+     {
+      "Ref": "PrivateSubnetAzA"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-ecr-docker-endpoint"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcEndpointType": "Interface",
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/EcrDockerEndpoint"
+   }
+  },
+  "Ec2Endpoint": {
+   "Type": "AWS::EC2::VPCEndpoint",
+   "Properties": {
+    "PrivateDnsEnabled": true,
+    "SecurityGroupIds": [
+     {
+      "Ref": "VpcEndpointSecurityGroup"
+     }
+    ],
+    "ServiceName": "com.amazonaws.us-west-2.ec2",
+    "SubnetIds": [
+     {
+      "Ref": "PrivateSubnetAzA"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-ec2-endpoint"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcEndpointType": "Interface",
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/Ec2Endpoint"
+   }
+  },
+  "StsEndpoint": {
+   "Type": "AWS::EC2::VPCEndpoint",
+   "Properties": {
+    "PrivateDnsEnabled": true,
+    "SecurityGroupIds": [
+     {
+      "Ref": "VpcEndpointSecurityGroup"
+     }
+    ],
+    "ServiceName": "com.amazonaws.us-west-2.sts",
+    "SubnetIds": [
+     {
+      "Ref": "PrivateSubnetAzA"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-sts-endpoint"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcEndpointType": "Interface",
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/StsEndpoint"
+   }
+  },
+  "CloudWatchLogsEndpoint": {
+   "Type": "AWS::EC2::VPCEndpoint",
+   "Properties": {
+    "PrivateDnsEnabled": true,
+    "SecurityGroupIds": [
+     {
+      "Ref": "VpcEndpointSecurityGroup"
+     }
+    ],
+    "ServiceName": "com.amazonaws.us-west-2.logs",
+    "SubnetIds": [
+     {
+      "Ref": "PrivateSubnetAzA"
+     },
+     {
+      "Ref": "PrivateSubnetAzB"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-cloudwatch-logs-endpoint"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster"
+     }
+    ],
+    "VpcEndpointType": "Interface",
+    "VpcId": {
+     "Ref": "JenkinsVpc"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/CloudWatchLogsEndpoint"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/12MQQvCMAyFf4sepatzHvQqY4gXlU28iEjWRayb6WhTh4j/XYrCxEN4Ly95XyKT6VzGA+hcpKo6anQpnwWDqgV07oQqkc/0TPttKtIzFb4k5OBy4xl3UDbY5322cM4oDawNhfOKGC0hL4Gxg4f4AL/bghnU5YbUc4PJVtsga/htFai81fxYWuPbLyajqjWa+CVydMZbhYfhaCj+5hi+N55bzy9BpkJ5deN7EsvJTMaDq9M6sp5Y31DmH30DffmYLRoBAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsNetworkStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "VpcIdOutput": {
+   "Description": "VPC ID for Jenkins EKS cluster",
+   "Value": {
+    "Ref": "JenkinsVpc"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkVpcId"
+   }
+  },
+  "PrivateSubnetAzAIdOutput": {
+   "Description": "Private Subnet ID in AZ-A",
+   "Value": {
+    "Ref": "PrivateSubnetAzA"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkPrivateSubnetAzA"
+   }
+  },
+  "PrivateSubnetAzBIdOutput": {
+   "Description": "Private Subnet ID in AZ-B",
+   "Value": {
+    "Ref": "PrivateSubnetAzB"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkPrivateSubnetAzB"
+   }
+  },
+  "NatGatewayAzAIdOutput": {
+   "Description": "NAT Gateway ID in Availability Zone A",
+   "Value": {
+    "Ref": "NatGatewayAzA"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkNatGatewayAzA"
+   }
+  },
+  "NatGatewayAzBIdOutput": {
+   "Description": "NAT Gateway ID in Availability Zone B",
+   "Value": {
+    "Ref": "NatGatewayAzB"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkNatGatewayAzB"
+   }
+  },
+  "ExportsOutputRefPrivateSubnetAzAA8DA57B8": {
+   "Value": {
+    "Ref": "PrivateSubnetAzA"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzAA8DA57B8"
+   }
+  },
+  "ExportsOutputRefPrivateSubnetAzB30FC3688": {
+   "Value": {
+    "Ref": "PrivateSubnetAzB"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzB30FC3688"
+   }
+  },
+  "ExportsOutputRefJenkinsVpc6E47CFBB": {
+   "Value": {
+    "Ref": "JenkinsVpc"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkStack:ExportsOutputRefJenkinsVpc6E47CFBB"
+   }
+  },
+  "ExportsOutputRefPrivateRouteTableAzAEC5B234C": {
+   "Value": {
+    "Ref": "PrivateRouteTableAzA"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkStack:ExportsOutputRefPrivateRouteTableAzAEC5B234C"
+   }
+  },
+  "ExportsOutputRefPrivateRouteTableAzBEDB08D09": {
+   "Value": {
+    "Ref": "PrivateRouteTableAzB"
+   },
+   "Export": {
+    "Name": "JenkinsNetworkStack:ExportsOutputRefPrivateRouteTableAzBEDB08D09"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

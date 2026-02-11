@@ -1,0 +1,253 @@
+{
+ "Description": "Transit Gateway for inter-VPC connectivity",
+ "Resources": {
+  "TransitGateway": {
+   "Type": "AWS::EC2::TransitGateway",
+   "Properties": {
+    "DefaultRouteTableAssociation": "enable",
+    "DefaultRouteTablePropagation": "enable",
+    "Description": "Transit Gateway for Jenkins and Nginx API VPC connectivity",
+    "DnsSupport": "enable",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-nginx-tgw"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Inter-VPC Connectivity"
+     }
+    ],
+    "VpnEcmpSupport": "enable"
+   },
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/TransitGateway"
+   }
+  },
+  "JenkinsVpcAttachment": {
+   "Type": "AWS::EC2::TransitGatewayAttachment",
+   "Properties": {
+    "SubnetIds": [
+     {
+      "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzAA8DA57B8"
+     },
+     {
+      "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzB30FC3688"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "jenkins-vpc-tgw-attachment"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins VPC to Transit Gateway"
+     }
+    ],
+    "TransitGatewayId": {
+     "Ref": "TransitGateway"
+    },
+    "VpcId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefJenkinsVpc6E47CFBB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/JenkinsVpcAttachment"
+   }
+  },
+  "NginxApiVpcAttachment": {
+   "Type": "AWS::EC2::TransitGatewayAttachment",
+   "Properties": {
+    "SubnetIds": [
+     {
+      "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet1Subnet1174CD0B767F3D15"
+     },
+     {
+      "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet2SubnetD6B4249DE818A381"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "nginx-api-vpc-tgw-attachment"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Nginx API VPC to Transit Gateway"
+     }
+    ],
+    "TransitGatewayId": {
+     "Ref": "TransitGateway"
+    },
+    "VpcId": {
+     "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcB7BEAB926351F217"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/NginxApiVpcAttachment"
+   }
+  },
+  "JenkinsToNginxApiRoute0": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "10.1.0.0/16",
+    "RouteTableId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateRouteTableAzAEC5B234C"
+    },
+    "TransitGatewayId": {
+     "Ref": "TransitGateway"
+    }
+   },
+   "DependsOn": [
+    "JenkinsVpcAttachment"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/JenkinsToNginxApiRoute0"
+   }
+  },
+  "JenkinsToNginxApiRoute1": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "10.1.0.0/16",
+    "RouteTableId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateRouteTableAzBEDB08D09"
+    },
+    "TransitGatewayId": {
+     "Ref": "TransitGateway"
+    }
+   },
+   "DependsOn": [
+    "JenkinsVpcAttachment"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/JenkinsToNginxApiRoute1"
+   }
+  },
+  "NginxApiToJenkinsRoute0": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "10.0.0.0/16",
+    "RouteTableId": {
+     "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet1RouteTable98063B8E4051C546"
+    },
+    "TransitGatewayId": {
+     "Ref": "TransitGateway"
+    }
+   },
+   "DependsOn": [
+    "NginxApiVpcAttachment"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/NginxApiToJenkinsRoute0"
+   }
+  },
+  "NginxApiToJenkinsRoute1": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "10.0.0.0/16",
+    "RouteTableId": {
+     "Fn::ImportValue": "NginxApiNetworkStack:ExportsOutputRefNginxApiVpcPrivateSubnet2RouteTable0500355FFE19B2C9"
+    },
+    "TransitGatewayId": {
+     "Ref": "TransitGateway"
+    }
+   },
+   "DependsOn": [
+    "NginxApiVpcAttachment"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/NginxApiToJenkinsRoute1"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/2WJMQ7CMAwA39I9MSEMsCIGRqTCjkxqhFvqotohQlX/jipGpjvdRYibHYQKi/rUdP7JN5jOhqlzWPRKKcJ0uMtlRFG2IxoV/Li/sjfD9OhJbHn1kI3mxU7ZXtlmJ0ND0OrqHQOstxCqVpn9mMW4J6h//AKBiOEejAAAAA=="
+   },
+   "Metadata": {
+    "aws:cdk:path": "TransitGatewayStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "TransitGatewayIdOutput": {
+   "Description": "Transit Gateway ID for inter-VPC connectivity",
+   "Value": {
+    "Ref": "TransitGateway"
+   },
+   "Export": {
+    "Name": "TransitGatewayId"
+   }
+  },
+  "TransitGatewayArnOutput": {
+   "Description": "Transit Gateway ARN",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "arn:aws:ec2:us-west-2:450683699755:transit-gateway/",
+      {
+       "Ref": "TransitGateway"
+      }
+     ]
+    ]
+   },
+   "Export": {
+    "Name": "TransitGatewayArn"
+   }
+  },
+  "JenkinsVpcAttachmentIdOutput": {
+   "Description": "Jenkins VPC Transit Gateway Attachment ID",
+   "Value": {
+    "Ref": "JenkinsVpcAttachment"
+   },
+   "Export": {
+    "Name": "JenkinsVpcTgwAttachmentId"
+   }
+  },
+  "NginxApiVpcAttachmentIdOutput": {
+   "Description": "Nginx API VPC Transit Gateway Attachment ID",
+   "Value": {
+    "Ref": "NginxApiVpcAttachment"
+   },
+   "Export": {
+    "Name": "NginxApiVpcTgwAttachmentId"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,120 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jenkins-create-jobs
+  namespace: jenkins
+spec:
+  template:
+    spec:
+      serviceAccountName: jenkins-controller
+      restartPolicy: OnFailure
+      containers:
+      - name: create-jobs
+        image: curlimages/curl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          # Wait for Jenkins to be ready
+          echo "Waiting for Jenkins to be ready..."
+          until curl -s -o /dev/null -w "%{http_code}" http://jenkins:8080/login | grep -q "200"; do
+            echo "Jenkins not ready yet, waiting..."
+            sleep 10
+          done
+          
+          echo "Jenkins is ready!"
+          
+          # Create nginx-api-build job
+          echo "Creating nginx-api-build job..."
+          cat <<'EOF' | curl -X POST http://jenkins:8080/createItem?name=nginx-api-build \
+            -H "Content-Type: application/xml" \
+            --data-binary @-
+          <?xml version='1.1' encoding='UTF-8'?>
+          <flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
+            <description>Build and deploy nginx-api Node.js application (with nginx reverse proxy) to nginx-api-cluster</description>
+            <keepDependencies>false</keepDependencies>
+            <properties>
+              <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.38.0">
+                <projectUrl>https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses/</projectUrl>
+                <displayName></displayName>
+              </com.coravy.hudson.plugins.github.GithubProjectProperty>
+              <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+                <triggers>
+                  <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.38.0">
+                    <spec></spec>
+                  </com.cloudbees.jenkins.GitHubPushTrigger>
+                </triggers>
+              </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+            </properties>
+            <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@3900.v84846a_f3c21b_">
+              <scm class="hudson.plugins.git.GitSCM" plugin="git@5.4.1">
+                <configVersion>2</configVersion>
+                <userRemoteConfigs>
+                  <hudson.plugins.git.UserRemoteConfig>
+                    <url>https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git</url>
+                  </hudson.plugins.git.UserRemoteConfig>
+                </userRemoteConfigs>
+                <branches>
+                  <hudson.plugins.git.BranchSpec>
+                    <name>*/main</name>
+                  </hudson.plugins.git.BranchSpec>
+                </branches>
+                <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+                <submoduleCfg class="empty-list"/>
+                <extensions/>
+              </scm>
+              <scriptPath>jenkins-jobs/nginx-api-build/Jenkinsfile</scriptPath>
+              <lightweight>true</lightweight>
+            </definition>
+            <triggers/>
+            <disabled>false</disabled>
+          </flow-definition>
+          EOF
+          
+          echo "nginx-api-build job created!"
+          
+          # Create nginx-docker-build job
+          echo "Creating nginx-docker-build job..."
+          cat <<'EOF' | curl -X POST http://jenkins:8080/createItem?name=nginx-docker-build \
+            -H "Content-Type: application/xml" \
+            --data-binary @-
+          <?xml version='1.1' encoding='UTF-8'?>
+          <flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
+            <description>Build nginx demo Docker image</description>
+            <keepDependencies>false</keepDependencies>
+            <properties>
+              <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+                <triggers>
+                  <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.38.0">
+                    <spec></spec>
+                  </com.cloudbees.jenkins.GitHubPushTrigger>
+                </triggers>
+              </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+            </properties>
+            <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@3900.v84846a_f3c21b_">
+              <scm class="hudson.plugins.git.GitSCM" plugin="git@5.4.1">
+                <configVersion>2</configVersion>
+                <userRemoteConfigs>
+                  <hudson.plugins.git.UserRemoteConfig>
+                    <url>https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git</url>
+                  </hudson.plugins.git.UserRemoteConfig>
+                </userRemoteConfigs>
+                <branches>
+                  <hudson.plugins.git.BranchSpec>
+                    <name>*/main</name>
+                  </hudson.plugins.git.BranchSpec>
+                </branches>
+                <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+                <submoduleCfg class="empty-list"/>
+                <extensions/>
+              </scm>
+              <scriptPath>jenkins-jobs/nginx-docker-build/Jenkinsfile</scriptPath>
+              <lightweight>true</lightweight>
+            </definition>
+            <triggers/>
+            <disabled>false</disabled>
+          </flow-definition>
+          EOF
+          
+          echo "nginx-docker-build job created!"
+          echo "All jobs created successfully!"

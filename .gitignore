@@ -15,6 +15,7 @@ access_details/*
 # Security directory (contains sensitive audit files with credentials)
 security/
 !security/README.md
+!security/alb-ip-whitelist.sample.json
 
 # Binary tools (should be installed locally, not committed)
 *.exe

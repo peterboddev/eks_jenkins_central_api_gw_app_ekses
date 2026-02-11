@@ -18,7 +18,8 @@ ingress:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /health
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
-  securityGroups: sg-078976752768a6ce4
+  # Security groups are auto-managed by ALB controller
+  # Remove hardcoded security group ID - ALB controller will create and manage security groups automatically
 
 resources:
   requests:

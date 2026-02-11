@@ -1,3 +1,13 @@
+# Jenkins Helm Chart Values
+# This file configures Jenkins deployment via Helm chart
+# 
+# IMPORTANT: Before deploying, update the following placeholders:
+# - JENKINS_URL: Replace with your actual Jenkins ALB DNS name after deployment
+# - AWS_ACCOUNT_ID: Replace with your AWS account ID
+#
+# To get Jenkins URL after deployment:
+# kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
 controller:
   # Use existing service account with IRSA
   serviceAccount:
@@ -34,12 +44,13 @@ controller:
     effect: NoSchedule
   
   # Service configuration
-  serviceType: NodePort
+  serviceType: ClusterIP
   servicePort: 8080
-  nodePort: 32371
   
   # Jenkins URL configuration
-  jenkinsUrl: "http://k8s-jenkins-jenkins-b637b220e8-2120753307.us-west-2.elb.amazonaws.com/"
+  # IMPORTANT: Replace JENKINS_URL with actual ALB DNS name after deployment
+  # Get it with: kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+  jenkinsUrl: "http://JENKINS_URL/"
   jenkinsUriPrefix: ""
   
   # Ingress configuration
@@ -48,26 +59,18 @@ controller:
     ingressClassName: alb
     annotations:
       alb.ingress.kubernetes.io/scheme: internet-facing
-  
-  # Additional existing ConfigMaps to mount
-  additionalExistingSecrets: []
-  additionalExistingConfigMaps:
-    - name: jenkins-casc-jobs
-      mountPath: /var/jenkins_home/casc_configs/jobs
-  
-  # Jenkins Configuration as Code (JCasC)
-  JCasC:
-    defaultConfig: true
-    configUrls: []
-    # Jobs are defined in the jenkins-casc-jobs ConfigMap
-
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/healthcheck-path: /login
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
       alb.ingress.kubernetes.io/tags: Environment=production,Application=jenkins
-      alb.ingress.kubernetes.io/subnets: subnet-058e81b188acbfd25,subnet-0f4c8c1cf98451d1f
-      alb.ingress.kubernetes.io/inbound-cidrs: 86.40.16.213/32,54.0.0.0/8,16.0.0.0/8,23.0.0.0/8,27.0.0.0/8,43.0.0.0/8,45.0.0.0/8,46.0.0.0/8,50.0.0.0/8,51.0.0.0/8,63.0.0.0/8,64.0.0.0/8,65.0.0.0/8,66.0.0.0/8,67.0.0.0/8,68.0.0.0/8,69.0.0.0/8,70.0.0.0/8,71.0.0.0/8,72.0.0.0/8,75.0.0.0/8,76.0.0.0/8,96.0.0.0/8,98.0.0.0/8,99.0.0.0/8,100.0.0.0/8,103.0.0.0/8,104.0.0.0/8,107.0.0.0/8,108.0.0.0/8,130.0.0.0/8,150.0.0.0/8,156.0.0.0/8,157.0.0.0/8,158.0.0.0/8,159.0.0.0/8,160.0.0.0/8,161.0.0.0/8,162.0.0.0/8,172.0.0.0/8,176.0.0.0/8,184.0.0.0/8,185.0.0.0/8,192.0.0.0/8,198.0.0.0/8,199.0.0.0/8,204.0.0.0/8,205.0.0.0/8,206.0.0.0/8,207.0.0.0/8,208.0.0.0/8,216.0.0.0/8
-    hostName: k8s-jenkins-jenkins-b637b220e8-2120753307.us-west-2.elb.amazonaws.com
+      # Subnets are auto-discovered based on tags:
+      # - kubernetes.io/role/elb=1 (for public subnets)
+      # - kubernetes.io/cluster/jenkins-eks-cluster=shared
+      # Security: Restrict access to specific IP ranges
+      # Update this list with your organization's IP ranges
+      alb.ingress.kubernetes.io/inbound-cidrs: 0.0.0.0/0
+    # IMPORTANT: Replace JENKINS_URL with actual ALB DNS name after deployment
+    hostName: JENKINS_URL
   
   # Install required plugins
   installPlugins:
@@ -88,7 +91,8 @@ controller:
       jenkins-url: |
         unclassified:
           location:
-            url: "http://k8s-jenkins-jenkins-b637b220e8-2120753307.us-west-2.elb.amazonaws.com/"
+            # IMPORTANT: Replace JENKINS_URL with actual ALB DNS name after deployment
+            url: "http://JENKINS_URL/"
       kubernetes-cloud: |
         jenkins:
           clouds:
@@ -218,7 +222,9 @@ spec:
     
     environment {
         AWS_REGION = 'us-west-2'
-        AWS_ACCOUNT_ID = '450683699755'
+        // IMPORTANT: Replace AWS_ACCOUNT_ID with your AWS account ID
+        // Get it with: aws sts get-caller-identity --query Account --output text
+        AWS_ACCOUNT_ID = 'AWS_ACCOUNT_ID'
         ECR_REPOSITORY = 'nginx-demo'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"

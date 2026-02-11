@@ -1,15 +1,50 @@
 import * as cdk from 'aws-cdk-lib';
+import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import * as efs from 'aws-cdk-lib/aws-efs';
 import { Template, Match } from 'aws-cdk-lib/assertions';
 import { JenkinsEksStack } from '../lib/eks_jenkins-stack';
+
+// Helper function to create test stack with mock VPC and EFS
+function createTestStack(app: cdk.App): JenkinsEksStack {
+  // Create a mock VPC for testing
+  const mockVpc = ec2.Vpc.fromVpcAttributes(app, 'MockVpc', {
+    vpcId: 'vpc-12345678',
+    availabilityZones: ['us-west-2a', 'us-west-2b'],
+    privateSubnetIds: ['subnet-11111111', 'subnet-22222222'],
+  });
+
+  // Create mock subnets
+  const mockSubnetAzA = ec2.Subnet.fromSubnetAttributes(app, 'MockSubnetAzA', {
+    subnetId: 'subnet-11111111',
+    availabilityZone: 'us-west-2a',
+  });
+
+  const mockSubnetAzB = ec2.Subnet.fromSubnetAttributes(app, 'MockSubnetAzB', {
+    subnetId: 'subnet-22222222',
+    availabilityZone: 'us-west-2b',
+  });
+
+  // Create mock EFS file system
+  const mockEfs = efs.FileSystem.fromFileSystemAttributes(app, 'MockEfs', {
+    fileSystemId: 'fs-12345678',
+    securityGroup: ec2.SecurityGroup.fromSecurityGroupId(app, 'MockEfsSg', 'sg-12345678'),
+  });
+
+  return new JenkinsEksStack(app, 'TestStack', {
+    env: { region: 'us-west-2' },
+    vpc: mockVpc,
+    privateSubnetAzA: mockSubnetAzA,
+    privateSubnetAzB: mockSubnetAzB,
+    efsFileSystem: mockEfs,
+  });
+}
 
 describe('JenkinsEksStack', () => {
   test('Stack is created successfully', () => {
     const app = new cdk.App();
     
     // WHEN
-    const stack = new JenkinsEksStack(app, 'TestStack', {
-      env: { region: 'us-west-2' }
-    });
+    const stack = createTestStack(app);
     
     // THEN
     const template = Template.fromStack(stack);
@@ -23,9 +58,7 @@ describe('JenkinsEksStack', () => {
 
     beforeAll(() => {
       const app = new cdk.App();
-      const stack = new JenkinsEksStack(app, 'TestStack', {
-        env: { region: 'us-west-2' }
-      });
+      const stack = createTestStack(app);
       template = Template.fromStack(stack);
     });
 
@@ -87,9 +120,7 @@ describe('JenkinsEksStack', () => {
 
     beforeAll(() => {
       const app = new cdk.App();
-      const stack = new JenkinsEksStack(app, 'TestStack', {
-        env: { region: 'us-west-2' }
-      });
+      const stack = createTestStack(app);
       template = Template.fromStack(stack);
     });
 

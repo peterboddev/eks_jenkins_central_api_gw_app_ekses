@@ -13,9 +13,10 @@ parameters:
   provisioningMode: efs-ap
   
   # EFS File System ID - MUST be replaced with actual file system ID
-  # Get this value from CDK stack output: JenkinsEksEfsFileSystemId
+  # IMPORTANT: Replace EFS_FILE_SYSTEM_ID with your EFS file system ID before applying
+  # To get the EFS ID, run: aws cloudformation describe-stacks --stack-name JenkinsStorageStack --query "Stacks[0].Outputs[?ExportName=='JenkinsStorageEfsFileSystemId'].OutputValue" --output text --region us-west-2
   # Example: fs-0123456789abcdef0
-  fileSystemId: fs-0351ee5e62a31c784
+  fileSystemId: EFS_FILE_SYSTEM_ID
   
   # Directory permissions for access points (octal format)
   # 700 = owner has read, write, execute; group and others have no permissions

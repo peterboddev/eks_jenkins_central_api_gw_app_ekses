@@ -13,12 +13,19 @@ spec:
   accessModes:
   - ReadWriteMany
   
-  # Storage class: efs-sc (EFS CSI Driver storage class)
+  # Storage class: jenkins-efs (static PV created by CDK)
   # Requirement 6.1: Persistent volume SHALL use EFS as storage backend
-  storageClassName: efs-sc
+  # This binds to the static PV created by CDK, no CSI driver needed
+  storageClassName: jenkins-efs
   
   # Storage request: 100Gi (symbolic size, EFS grows automatically)
   # Requirement 3.2: Mount to /var/jenkins_home
   resources:
     requests:
       storage: 100Gi
+  
+  # Selector to bind to the specific PV created by CDK
+  selector:
+    matchLabels:
+      app: jenkins
+      type: efs

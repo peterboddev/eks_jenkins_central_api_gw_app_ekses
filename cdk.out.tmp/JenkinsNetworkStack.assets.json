@@ -1,0 +1,21 @@
+{
+  "version": "48.0.0",
+  "files": {
+    "7c63bc15dde8c1adbfff9b2b4a5412fe8329d3c9645582bc9cd90d85e990f021": {
+      "displayName": "JenkinsNetworkStack Template",
+      "source": {
+        "path": "JenkinsNetworkStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "450683699755-us-west-2-3f65b20d": {
+          "bucketName": "cdk-hnb659fds-assets-450683699755-us-west-2",
+          "objectKey": "7c63bc15dde8c1adbfff9b2b4a5412fe8329d3c9645582bc9cd90d85e990f021.json",
+          "region": "us-west-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::450683699755:role/cdk-hnb659fds-file-publishing-role-450683699755-us-west-2"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

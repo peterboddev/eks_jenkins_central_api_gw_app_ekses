@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: install-nfs-utils-controller
+  namespace: kube-system
+spec:
+  hostPID: true
+  hostNetwork: true
+  nodeSelector:
+    workload-type: jenkins-controller
+  tolerations:
+  - key: workload-type
+    value: jenkins-controller
+    effect: NoSchedule
+  containers:
+  - name: installer
+    image: alpine:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      #!/bin/sh
+      echo "Installing nfs-utils on host..."
+      nsenter -t 1 -m -u -i -n -p -- dnf install -y nfs-utils
+      echo "nfs-utils installed successfully"
+      sleep infinity
+    securityContext:
+      privileged: true
+  restartPolicy: Never

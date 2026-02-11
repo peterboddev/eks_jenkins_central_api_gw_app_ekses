@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fix-efs-permissions
+  namespace: jenkins
+spec:
+  nodeSelector:
+    workload-type: jenkins-controller
+  tolerations:
+  - key: workload-type
+    value: jenkins-controller
+    effect: NoSchedule
+  containers:
+  - name: fixer
+    image: alpine:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      #!/bin/sh
+      echo "Fixing EFS permissions..."
+      chown -R 1000:1000 /var/jenkins_home
+      chmod -R 755 /var/jenkins_home
+      ls -la /var/jenkins_home
+      echo "Permissions fixed!"
+      sleep infinity
+    volumeMounts:
+    - name: jenkins-home
+      mountPath: /var/jenkins_home
+    securityContext:
+      runAsUser: 0
+  volumes:
+  - name: jenkins-home
+    persistentVolumeClaim:
+      claimName: jenkins-home-jenkins-controller-0
+  restartPolicy: Never

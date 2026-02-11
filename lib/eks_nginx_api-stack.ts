@@ -5,9 +5,6 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as logs from 'aws-cdk-lib/aws-logs';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
-import * as events from 'aws-cdk-lib/aws-events';
-import * as targets from 'aws-cdk-lib/aws-events-targets';
 import { Construct } from 'constructs';
 
 /**
@@ -24,6 +21,11 @@ import { Construct } from 'constructs';
  */
 
 export interface NginxApiClusterStackProps extends cdk.StackProps {
+  /**
+   * VPC for the EKS cluster (imported from NginxApiNetworkStack)
+   */
+  vpc: ec2.IVpc;
+  
   /**
    * VPC ID of the Jenkins cluster for Transit Gateway connectivity
    */
@@ -48,48 +50,8 @@ export class NginxApiClusterStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: NginxApiClusterStackProps) {
     super(scope, id, props);
 
-    // Task 2.1: Create VPC with CIDR 10.1.0.0/16
-    // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6
-    // EKS requires at least 2 AZs
-    
-    this.vpc = new ec2.Vpc(this, 'NginxApiVpc', {
-      ipAddresses: ec2.IpAddresses.cidr('10.1.0.0/16'),
-      maxAzs: 2,
-      natGateways: 1, // Single NAT Gateway for cost savings
-      subnetConfiguration: [
-        {
-          name: 'Public',
-          subnetType: ec2.SubnetType.PUBLIC,
-          cidrMask: 24,
-        },
-        {
-          name: 'Private',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-          cidrMask: 24,
-        },
-      ],
-    });
-
-    // Task 2.2: Add subnet tags for EKS and Karpenter
-    // Tag public subnets for ALB
-    this.vpc.publicSubnets.forEach((subnet, index) => {
-      cdk.Tags.of(subnet).add('kubernetes.io/role/elb', '1');
-      cdk.Tags.of(subnet).add('kubernetes.io/cluster/nginx-api-cluster', 'shared');
-    });
-
-    // Tag private subnets for internal resources and Karpenter discovery
-    this.vpc.privateSubnets.forEach((subnet, index) => {
-      cdk.Tags.of(subnet).add('kubernetes.io/role/internal-elb', '1');
-      cdk.Tags.of(subnet).add('kubernetes.io/cluster/nginx-api-cluster', 'shared');
-      cdk.Tags.of(subnet).add('karpenter.sh/discovery', 'nginx-api-cluster');
-    });
-
-    // Output VPC information
-    new cdk.CfnOutput(this, 'VpcIdOutput', {
-      value: this.vpc.vpcId,
-      description: 'VPC ID for nginx-api-cluster',
-      exportName: 'NginxApiClusterVpcId',
-    });
+    // Import VPC from NginxApiNetworkStack
+    this.vpc = props.vpc;
 
     // Task 3.1: Create EKS cluster with control plane
     // Requirements: 2.1, 2.3, 2.4, 11.5, 12.1
@@ -170,94 +132,6 @@ export class NginxApiClusterStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ClusterArn', {
       value: this.cluster.clusterArn,
       description: 'EKS cluster ARN',
-    });
-
-    // Task 5.1: Create IAM roles for Karpenter
-    // Requirements: 2.3, 11.6
-    
-    // Karpenter Node IAM Role
-    const karpenterNodeRole = new iam.Role(this, 'KarpenterNodeRole', {
-      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEKSWorkerNodePolicy'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEKS_CNI_Policy'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
-      ],
-    });
-
-    // Add cross-account ECR access policy
-    karpenterNodeRole.addToPolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: [
-        'ecr:GetAuthorizationToken',
-        'ecr:BatchCheckLayerAvailability',
-        'ecr:GetDownloadUrlForLayer',
-        'ecr:BatchGetImage',
-      ],
-      resources: ['*'],
-    }));
-
-    // Create instance profile for Karpenter nodes
-    const karpenterInstanceProfile = new iam.CfnInstanceProfile(this, 'KarpenterInstanceProfile', {
-      roles: [karpenterNodeRole.roleName],
-      instanceProfileName: `KarpenterNodeInstanceProfile-${this.cluster.clusterName}`,
-    });
-
-    // Task 5.2: Create Karpenter interruption queue
-    const karpenterInterruptionQueue = new sqs.Queue(this, 'KarpenterInterruptionQueue', {
-      queueName: `${this.cluster.clusterName}-karpenter-interruption`,
-      retentionPeriod: cdk.Duration.seconds(300),
-    });
-
-    // EventBridge rules for EC2 instance state changes
-    const ec2StateChangeRule = new events.Rule(this, 'EC2StateChangeRule', {
-      eventPattern: {
-        source: ['aws.ec2'],
-        detailType: ['EC2 Instance State-change Notification'],
-      },
-    });
-    ec2StateChangeRule.addTarget(new targets.SqsQueue(karpenterInterruptionQueue));
-
-    const ec2SpotInterruptionRule = new events.Rule(this, 'EC2SpotInterruptionRule', {
-      eventPattern: {
-        source: ['aws.ec2'],
-        detailType: ['EC2 Spot Instance Interruption Warning'],
-      },
-    });
-    ec2SpotInterruptionRule.addTarget(new targets.SqsQueue(karpenterInterruptionQueue));
-
-    const ec2RebalanceRule = new events.Rule(this, 'EC2RebalanceRule', {
-      eventPattern: {
-        source: ['aws.ec2'],
-        detailType: ['EC2 Instance Rebalance Recommendation'],
-      },
-    });
-    ec2RebalanceRule.addTarget(new targets.SqsQueue(karpenterInterruptionQueue));
-
-    // Task 5.3: Tag security groups for Karpenter discovery
-    const nodeSecurityGroup = this.cluster.clusterSecurityGroup;
-    cdk.Tags.of(nodeSecurityGroup).add('karpenter.sh/discovery', this.cluster.clusterName);
-
-    // Output Karpenter configuration
-    new cdk.CfnOutput(this, 'KarpenterNodeRoleArn', {
-      value: karpenterNodeRole.roleArn,
-      description: 'Karpenter node IAM role ARN',
-    });
-
-    new cdk.CfnOutput(this, 'KarpenterControllerRoleArn', {
-      value: 'Will be created via Helm with IRSA',
-      description: 'Karpenter controller IAM role ARN (create via Helm)',
-    });
-
-    new cdk.CfnOutput(this, 'KarpenterInstanceProfileName', {
-      value: karpenterInstanceProfile.instanceProfileName!,
-      description: 'Karpenter instance profile name',
-    });
-
-    new cdk.CfnOutput(this, 'KarpenterInterruptionQueueName', {
-      value: karpenterInterruptionQueue.queueName,
-      description: 'Karpenter interruption queue name',
     });
 
     // Task 7.1: Create IAM role for ALB Controller
@@ -345,5 +219,498 @@ export class NginxApiClusterStack extends cdk.Stack {
     // Task 13.1: Create CloudWatch log groups
     // Requirements: 12.1, 12.3, 12.4, 12.5
     // Note: EKS cluster creates its own log group automatically when control plane logging is enabled
+
+    // Task 6: Create managed node group for nginx-api workloads
+    // Note: Karpenter requires CRDs which are complex to install via CDK
+    // Using managed node group instead for simplicity and reliability
+    
+    const nodeGroup = this.cluster.addNodegroupCapacity('NginxApiNodeGroup', {
+      nodegroupName: 'nginx-api-nodes',
+      instanceTypes: [
+        new ec2.InstanceType('t3.medium'),
+        new ec2.InstanceType('t3.large'),
+      ],
+      minSize: 2,
+      maxSize: 10,
+      desiredSize: 3,
+      diskSize: 20,
+      subnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      capacityType: eks.CapacityType.ON_DEMAND,
+      labels: {
+        role: 'nginx-api',
+        environment: 'production',
+      },
+      tags: {
+        Name: 'nginx-api-node',
+        Environment: 'production',
+        ManagedBy: 'AWS CDK',
+      },
+    });
+
+    // Grant node group access to Jenkins ECR
+    nodeGroup.role.addToPrincipalPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ecr:GetAuthorizationToken',
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage',
+      ],
+      resources: ['*'],
+    }));
+
+    new cdk.CfnOutput(this, 'NodeGroupName', {
+      value: nodeGroup.nodegroupName,
+      description: 'Nginx API node group name',
+    });
+
+    // Task 7: Deploy AWS Load Balancer Controller
+    // Requirements: 3.1-3.6
+    
+    // Load ALB Controller IAM policy
+    const albPolicyDocument = new iam.PolicyDocument({
+      statements: [
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'ec2:DescribeAccountAttributes',
+            'ec2:DescribeAddresses',
+            'ec2:DescribeAvailabilityZones',
+            'ec2:DescribeInternetGateways',
+            'ec2:DescribeVpcs',
+            'ec2:DescribeVpcPeeringConnections',
+            'ec2:DescribeSubnets',
+            'ec2:DescribeSecurityGroups',
+            'ec2:DescribeInstances',
+            'ec2:DescribeNetworkInterfaces',
+            'ec2:DescribeTags',
+            'ec2:GetCoipPoolUsage',
+            'ec2:DescribeCoipPools',
+            'elasticloadbalancing:DescribeLoadBalancers',
+            'elasticloadbalancing:DescribeLoadBalancerAttributes',
+            'elasticloadbalancing:DescribeListeners',
+            'elasticloadbalancing:DescribeListenerCertificates',
+            'elasticloadbalancing:DescribeSSLPolicies',
+            'elasticloadbalancing:DescribeRules',
+            'elasticloadbalancing:DescribeTargetGroups',
+            'elasticloadbalancing:DescribeTargetGroupAttributes',
+            'elasticloadbalancing:DescribeTargetHealth',
+            'elasticloadbalancing:DescribeTags',
+          ],
+          resources: ['*'],
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'cognito-idp:DescribeUserPoolClient',
+            'acm:ListCertificates',
+            'acm:DescribeCertificate',
+            'iam:ListServerCertificates',
+            'iam:GetServerCertificate',
+            'waf-regional:GetWebACL',
+            'waf-regional:GetWebACLForResource',
+            'waf-regional:AssociateWebACL',
+            'waf-regional:DisassociateWebACL',
+            'wafv2:GetWebACL',
+            'wafv2:GetWebACLForResource',
+            'wafv2:AssociateWebACL',
+            'wafv2:DisassociateWebACL',
+            'shield:GetSubscriptionState',
+            'shield:DescribeProtection',
+            'shield:CreateProtection',
+            'shield:DeleteProtection',
+          ],
+          resources: ['*'],
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'ec2:AuthorizeSecurityGroupIngress',
+            'ec2:RevokeSecurityGroupIngress',
+            'ec2:CreateSecurityGroup',
+          ],
+          resources: ['*'],
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['ec2:CreateTags'],
+          resources: ['arn:aws:ec2:*:*:security-group/*'],
+          conditions: {
+            StringEquals: {
+              'ec2:CreateAction': 'CreateSecurityGroup',
+            },
+            Null: {
+              'aws:RequestTag/elbv2.k8s.aws/cluster': 'false',
+            },
+          },
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ['ec2:CreateTags', 'ec2:DeleteTags'],
+          resources: ['arn:aws:ec2:*:*:security-group/*'],
+          conditions: {
+            Null: {
+              'aws:RequestTag/elbv2.k8s.aws/cluster': 'true',
+              'aws:ResourceTag/elbv2.k8s.aws/cluster': 'false',
+            },
+          },
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'ec2:AuthorizeSecurityGroupIngress',
+            'ec2:RevokeSecurityGroupIngress',
+            'ec2:DeleteSecurityGroup',
+          ],
+          resources: ['*'],
+          conditions: {
+            Null: {
+              'aws:ResourceTag/elbv2.k8s.aws/cluster': 'false',
+            },
+          },
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'elasticloadbalancing:CreateLoadBalancer',
+            'elasticloadbalancing:CreateTargetGroup',
+          ],
+          resources: ['*'],
+          conditions: {
+            Null: {
+              'aws:RequestTag/elbv2.k8s.aws/cluster': 'false',
+            },
+          },
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'elasticloadbalancing:CreateListener',
+            'elasticloadbalancing:DeleteListener',
+            'elasticloadbalancing:CreateRule',
+            'elasticloadbalancing:DeleteRule',
+          ],
+          resources: ['*'],
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'elasticloadbalancing:AddTags',
+            'elasticloadbalancing:RemoveTags',
+          ],
+          resources: [
+            'arn:aws:elasticloadbalancing:*:*:targetgroup/*/*',
+            'arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*',
+            'arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*',
+          ],
+          conditions: {
+            Null: {
+              'aws:RequestTag/elbv2.k8s.aws/cluster': 'true',
+              'aws:ResourceTag/elbv2.k8s.aws/cluster': 'false',
+            },
+          },
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'elasticloadbalancing:AddTags',
+            'elasticloadbalancing:RemoveTags',
+          ],
+          resources: [
+            'arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*',
+            'arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*',
+            'arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*',
+            'arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*',
+          ],
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'elasticloadbalancing:ModifyLoadBalancerAttributes',
+            'elasticloadbalancing:SetIpAddressType',
+            'elasticloadbalancing:SetSecurityGroups',
+            'elasticloadbalancing:SetSubnets',
+            'elasticloadbalancing:DeleteLoadBalancer',
+            'elasticloadbalancing:ModifyTargetGroup',
+            'elasticloadbalancing:ModifyTargetGroupAttributes',
+            'elasticloadbalancing:DeleteTargetGroup',
+          ],
+          resources: ['*'],
+          conditions: {
+            Null: {
+              'aws:ResourceTag/elbv2.k8s.aws/cluster': 'false',
+            },
+          },
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'elasticloadbalancing:RegisterTargets',
+            'elasticloadbalancing:DeregisterTargets',
+          ],
+          resources: ['arn:aws:elasticloadbalancing:*:*:targetgroup/*/*'],
+        }),
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'elasticloadbalancing:SetWebAcl',
+            'elasticloadbalancing:ModifyListener',
+            'elasticloadbalancing:AddListenerCertificates',
+            'elasticloadbalancing:RemoveListenerCertificates',
+            'elasticloadbalancing:ModifyRule',
+          ],
+          resources: ['*'],
+        }),
+      ],
+    });
+
+    // Create service account for ALB Controller with IRSA
+    const albServiceAccount = this.cluster.addServiceAccount('ALBControllerServiceAccount', {
+      name: 'aws-load-balancer-controller',
+      namespace: 'kube-system',
+    });
+
+    albServiceAccount.role.attachInlinePolicy(new iam.Policy(this, 'ALBControllerInlinePolicy', {
+      policyName: 'AWSLoadBalancerControllerPolicy',
+      document: albPolicyDocument,
+    }));
+
+    // Deploy ALB Controller
+    const albControllerManifest = this.cluster.addManifest('ALBController', {
+      apiVersion: 'apps/v1',
+      kind: 'Deployment',
+      metadata: {
+        name: 'aws-load-balancer-controller',
+        namespace: 'kube-system',
+        labels: {
+          'app.kubernetes.io/name': 'aws-load-balancer-controller',
+        },
+      },
+      spec: {
+        replicas: 2,
+        selector: {
+          matchLabels: {
+            'app.kubernetes.io/name': 'aws-load-balancer-controller',
+          },
+        },
+        template: {
+          metadata: {
+            labels: {
+              'app.kubernetes.io/name': 'aws-load-balancer-controller',
+            },
+          },
+          spec: {
+            serviceAccountName: 'aws-load-balancer-controller',
+            containers: [
+              {
+                name: 'controller',
+                image: 'public.ecr.aws/eks/aws-load-balancer-controller:v2.8.1',
+                args: [
+                  `--cluster-name=${this.cluster.clusterName}`,
+                  '--ingress-class=alb',
+                  `--aws-region=${this.region}`,
+                  `--aws-vpc-id=${this.vpc.vpcId}`,
+                ],
+                resources: {
+                  limits: {
+                    cpu: '200m',
+                    memory: '500Mi',
+                  },
+                  requests: {
+                    cpu: '100m',
+                    memory: '200Mi',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    albControllerManifest.node.addDependency(albServiceAccount);
+
+    // Task 11: Deploy nginx-api application
+    // Requirements: 4.1-4.8, 9.1-9.5
+    
+    // Create namespace for nginx-api
+    const nginxApiNamespace = this.cluster.addManifest('NginxApiNamespace', {
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: {
+        name: 'nginx-api',
+      },
+    });
+
+    // Create Deployment
+    const nginxApiDeployment = this.cluster.addManifest('NginxApiDeployment', {
+      apiVersion: 'apps/v1',
+      kind: 'Deployment',
+      metadata: {
+        name: 'nginx-api',
+        namespace: 'nginx-api',
+        labels: {
+          app: 'nginx-api',
+        },
+      },
+      spec: {
+        replicas: 3,
+        selector: {
+          matchLabels: {
+            app: 'nginx-api',
+          },
+        },
+        template: {
+          metadata: {
+            labels: {
+              app: 'nginx-api',
+            },
+          },
+          spec: {
+            containers: [
+              {
+                name: 'nginx-api',
+                image: `${props.jenkinsAccountId}.dkr.ecr.${this.region}.amazonaws.com/nginx-api:latest`,
+                ports: [
+                  {
+                    name: 'http',
+                    containerPort: 8080,
+                    protocol: 'TCP',
+                  },
+                ],
+                env: [
+                  {
+                    name: 'NODE_ENV',
+                    value: 'production',
+                  },
+                  {
+                    name: 'CLUSTER_NAME',
+                    value: this.cluster.clusterName,
+                  },
+                ],
+                livenessProbe: {
+                  httpGet: {
+                    path: '/health',
+                    port: 8080,
+                  },
+                  initialDelaySeconds: 10,
+                  periodSeconds: 10,
+                  timeoutSeconds: 3,
+                  failureThreshold: 3,
+                },
+                readinessProbe: {
+                  httpGet: {
+                    path: '/health',
+                    port: 8080,
+                  },
+                  initialDelaySeconds: 5,
+                  periodSeconds: 5,
+                  timeoutSeconds: 3,
+                  failureThreshold: 3,
+                },
+                resources: {
+                  requests: {
+                    cpu: '100m',
+                    memory: '128Mi',
+                  },
+                  limits: {
+                    cpu: '500m',
+                    memory: '512Mi',
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    nginxApiDeployment.node.addDependency(nginxApiNamespace);
+    nginxApiDeployment.node.addDependency(nodeGroup);
+
+    // Create Service
+    const nginxApiService = this.cluster.addManifest('NginxApiService', {
+      apiVersion: 'v1',
+      kind: 'Service',
+      metadata: {
+        name: 'nginx-api',
+        namespace: 'nginx-api',
+      },
+      spec: {
+        type: 'ClusterIP',
+        selector: {
+          app: 'nginx-api',
+        },
+        ports: [
+          {
+            name: 'http',
+            port: 80,
+            targetPort: 8080,
+            protocol: 'TCP',
+          },
+        ],
+      },
+    });
+
+    nginxApiService.node.addDependency(nginxApiDeployment);
+
+    // Create Ingress with ALB annotations
+    const nginxApiIngress = this.cluster.addManifest('NginxApiIngress', {
+      apiVersion: 'networking.k8s.io/v1',
+      kind: 'Ingress',
+      metadata: {
+        name: 'nginx-api',
+        namespace: 'nginx-api',
+        annotations: {
+          'alb.ingress.kubernetes.io/scheme': 'internet-facing',
+          'alb.ingress.kubernetes.io/target-type': 'ip',
+          'alb.ingress.kubernetes.io/security-groups': albSecurityGroup.securityGroupId,
+          'alb.ingress.kubernetes.io/listen-ports': '[{"HTTPS":443}]',
+          'alb.ingress.kubernetes.io/ssl-policy': 'ELBSecurityPolicy-TLS-1-2-2017-01',
+          'alb.ingress.kubernetes.io/healthcheck-path': '/health',
+          'alb.ingress.kubernetes.io/healthcheck-interval-seconds': '15',
+          'alb.ingress.kubernetes.io/healthcheck-timeout-seconds': '5',
+          'alb.ingress.kubernetes.io/healthy-threshold-count': '2',
+          'alb.ingress.kubernetes.io/unhealthy-threshold-count': '2',
+        },
+      },
+      spec: {
+        ingressClassName: 'alb',
+        rules: [
+          {
+            http: {
+              paths: [
+                {
+                  path: '/',
+                  pathType: 'Prefix',
+                  backend: {
+                    service: {
+                      name: 'nginx-api',
+                      port: {
+                        number: 80,
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    nginxApiIngress.node.addDependency(nginxApiService);
+    nginxApiIngress.node.addDependency(albControllerManifest);
+
+    // Output deployment information
+    new cdk.CfnOutput(this, 'NginxApiDeploymentStatus', {
+      value: 'Deployed via CDK manifests',
+      description: 'Nginx API application deployment status',
+    });
+
+    new cdk.CfnOutput(this, 'NginxApiImageRepository', {
+      value: `${props.jenkinsAccountId}.dkr.ecr.${this.region}.amazonaws.com/nginx-api`,
+      description: 'ECR repository for nginx-api Docker image',
+    });
   }
 }

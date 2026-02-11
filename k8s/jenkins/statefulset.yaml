@@ -37,6 +37,25 @@ spec:
       # Requirement 3.6: Jenkins controller SHALL have automatic pod restart enabled
       restartPolicy: Always
       
+      # Init container to install plugins
+      initContainers:
+      - name: install-plugins
+        image: jenkins/jenkins:lts
+        command:
+        - sh
+        - -c
+        - |
+          echo "Installing Jenkins plugins..."
+          jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt --verbose
+          echo "Plugins installed successfully!"
+        volumeMounts:
+        - name: jenkins-home
+          mountPath: /var/jenkins_home
+        - name: jenkins-plugins
+          mountPath: /usr/share/jenkins/ref/plugins.txt
+          subPath: plugins.txt
+          readOnly: true
+      
       containers:
       - name: jenkins
         # Use ARM64-compatible Jenkins image for Graviton2 (t4g) instances
@@ -56,6 +75,18 @@ spec:
         # Disable update center checks to avoid slowness in private subnet
         - name: JENKINS_UC_DOWNLOAD
           value: "false"
+        # Admin password from Secrets Manager
+        - name: JENKINS_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jenkins-secrets
+              key: admin-password
+        # GitHub webhook secret from Secrets Manager
+        - name: GITHUB_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jenkins-secrets
+              key: github-webhook-secret
         
         # Resource requests and limits
         # Requirement 3.3: Jenkins controller SHALL have at least 4GB memory and 2 CPU cores
@@ -83,14 +114,21 @@ spec:
         volumeMounts:
         - name: jenkins-home
           mountPath: /var/jenkins_home
+        # Volume mount for plugins installation
+        - name: jenkins-plugins
+          mountPath: /usr/share/jenkins/ref/plugins.txt
+          subPath: plugins.txt
+          readOnly: true
+        # Volume mount for main JCasC configuration
+        - name: jenkins-casc-main
+          mountPath: /var/jenkins_home/casc_configs/jenkins.yaml
+          subPath: jenkins.yaml
+          readOnly: true
         # Volume mount for Jenkins Configuration as Code (JCasC)
         # This mounts the agent pod template configuration
         - name: jenkins-agent-config
-          mountPath: /var/jenkins_home/casc_configs
-          readOnly: true
-        # Volume mount for Jenkins jobs configuration
-        - name: jenkins-jobs-config
-          mountPath: /var/jenkins_home/casc_configs/jobs
+          mountPath: /var/jenkins_home/casc_configs/agent-pod-template.yaml
+          subPath: agent-pod-template.yaml
           readOnly: true
         
         # Liveness probe to check if Jenkins is running
@@ -116,12 +154,15 @@ spec:
       # Volumes for ConfigMaps
       # Mount the agent pod template configuration
       volumes:
+      - name: jenkins-plugins
+        configMap:
+          name: jenkins-plugins
+      - name: jenkins-casc-main
+        configMap:
+          name: jenkins-casc-main
       - name: jenkins-agent-config
         configMap:
           name: jenkins-agent-pod-template
-      - name: jenkins-jobs-config
-        configMap:
-          name: jenkins-casc-jobs
   
   # Volume claim templates for persistent storage
   # This will be created in task 9.3
@@ -131,7 +172,7 @@ spec:
     spec:
       accessModes:
       - ReadWriteMany
-      storageClassName: efs-sc
+      storageClassName: jenkins-efs
       resources:
         requests:
           storage: 100Gi

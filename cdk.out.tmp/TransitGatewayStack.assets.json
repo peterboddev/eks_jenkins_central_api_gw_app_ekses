@@ -1,0 +1,21 @@
+{
+  "version": "48.0.0",
+  "files": {
+    "7177628a7614d35e7dd621e1031b705636ab5e454e2b74369c15c72686a3114a": {
+      "displayName": "TransitGatewayStack Template",
+      "source": {
+        "path": "TransitGatewayStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "450683699755-us-west-2-d0ae921c": {
+          "bucketName": "cdk-hnb659fds-assets-450683699755-us-west-2",
+          "objectKey": "7177628a7614d35e7dd621e1031b705636ab5e454e2b74369c15c72686a3114a.json",
+          "region": "us-west-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::450683699755:role/cdk-hnb659fds-file-publishing-role-450683699755-us-west-2"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

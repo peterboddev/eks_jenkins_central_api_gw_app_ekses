@@ -1,0 +1,2867 @@
+{
+ "Description": "Jenkins CI/CD platform on Amazon EKS with spot instances",
+ "Resources": {
+  "KubectlLayer600207B5": {
+   "Type": "AWS::Lambda::LayerVersion",
+   "Properties": {
+    "CompatibleRuntimes": [
+     "python3.12",
+     "python3.13"
+    ],
+    "Content": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-west-2",
+     "S3Key": "954e6e9b0c5b52a5026f0d4d400be8b316ee39dd23b73850ca64dcb5ca305a10.zip"
+    },
+    "Description": "kubectl binary for Kubernetes API access"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/KubectlLayer/Resource",
+    "aws:asset:path": "asset.954e6e9b0c5b52a5026f0d4d400be8b316ee39dd23b73850ca64dcb5ca305a10.zip",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Content"
+   }
+  },
+  "JenkinsEksClusterKubectlHandlerRoleDB395AFE": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEC2ContainerRegistryPullOnly"
+       ]
+      ]
+     },
+     {
+      "Fn::If": [
+       "JenkinsEksClusterHasEcrPublicA2DE6B4B",
+       {
+        "Fn::Join": [
+         "",
+         [
+          "arn:",
+          {
+           "Ref": "AWS::Partition"
+          },
+          ":iam::aws:policy/AmazonElasticContainerRegistryPublicReadOnly"
+         ]
+        ]
+       },
+       {
+        "Ref": "AWS::NoValue"
+       }
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/KubectlHandlerRole/Resource"
+   }
+  },
+  "JenkinsEksClusterKubectlHandlerRoleDefaultPolicyE32039FF": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "eks:DescribeCluster",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "JenkinsEksCluster57AD7EB2",
+         "Arn"
+        ]
+       }
+      },
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "JenkinsEksClusterCreationRole74EBB5F9",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "JenkinsEksClusterKubectlHandlerRoleDefaultPolicyE32039FF",
+    "Roles": [
+     {
+      "Ref": "JenkinsEksClusterKubectlHandlerRoleDB395AFE"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/KubectlHandlerRole/DefaultPolicy/Resource"
+   }
+  },
+  "JenkinsEksClusterRole082DA6FB": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "eks.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEKSClusterPolicy"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/Role/Resource"
+   }
+  },
+  "JenkinsEksClusterControlPlaneSecurityGroup6598A4D5": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "EKS Control Plane Security Group",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "VpcId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefJenkinsVpc6E47CFBB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/ControlPlaneSecurityGroup/Resource"
+   }
+  },
+  "JenkinsEksClusterCreationRole74EBB5F9": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": [
+         {
+          "Fn::GetAtt": [
+           "JenkinsEksClusterKubectlHandlerRoleDB395AFE",
+           "Arn"
+          ]
+         },
+         {
+          "Fn::GetAtt": [
+           "awscdkawseksClusterResourceProviderNestedStackawscdkawseksClusterResourceProviderNestedStackResource9827C454",
+           "Outputs.JenkinsEksStackawscdkawseksClusterResourceProviderIsCompleteHandlerServiceRole7580044BArn"
+          ]
+         },
+         {
+          "Fn::GetAtt": [
+           "awscdkawseksClusterResourceProviderNestedStackawscdkawseksClusterResourceProviderNestedStackResource9827C454",
+           "Outputs.JenkinsEksStackawscdkawseksClusterResourceProviderOnEventHandlerServiceRoleF3A03153Arn"
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/Resource/CreationRole/Resource"
+   }
+  },
+  "JenkinsEksClusterCreationRoleDefaultPolicy1ACEA1D3": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "iam:PassRole",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "JenkinsEksClusterRole082DA6FB",
+         "Arn"
+        ]
+       }
+      },
+      {
+       "Action": [
+        "eks:CreateCluster",
+        "eks:CreateFargateProfile",
+        "eks:DeleteCluster",
+        "eks:DescribeCluster",
+        "eks:DescribeUpdate",
+        "eks:TagResource",
+        "eks:UntagResource",
+        "eks:UpdateClusterConfig",
+        "eks:UpdateClusterVersion"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        "arn:aws:eks:us-west-2:450683699755:cluster/jenkins-eks-cluster",
+        "arn:aws:eks:us-west-2:450683699755:cluster/jenkins-eks-cluster/*"
+       ]
+      },
+      {
+       "Action": [
+        "eks:DeleteFargateProfile",
+        "eks:DescribeFargateProfile"
+       ],
+       "Effect": "Allow",
+       "Resource": "arn:aws:eks:us-west-2:450683699755:fargateprofile/jenkins-eks-cluster/*"
+      },
+      {
+       "Action": [
+        "ec2:DescribeDhcpOptions",
+        "ec2:DescribeInstances",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs",
+        "iam:CreateServiceLinkedRole",
+        "iam:GetRole",
+        "iam:listAttachedRolePolicies"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "JenkinsEksClusterCreationRoleDefaultPolicy1ACEA1D3",
+    "Roles": [
+     {
+      "Ref": "JenkinsEksClusterCreationRole74EBB5F9"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/Resource/CreationRole/DefaultPolicy/Resource"
+   }
+  },
+  "JenkinsEksCluster57AD7EB2": {
+   "Type": "Custom::AWSCDK-EKS-Cluster",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "awscdkawseksClusterResourceProviderNestedStackawscdkawseksClusterResourceProviderNestedStackResource9827C454",
+      "Outputs.JenkinsEksStackawscdkawseksClusterResourceProviderframeworkonEvent18F8A393Arn"
+     ]
+    },
+    "Config": {
+     "name": "jenkins-eks-cluster",
+     "version": "1.32",
+     "roleArn": {
+      "Fn::GetAtt": [
+       "JenkinsEksClusterRole082DA6FB",
+       "Arn"
+      ]
+     },
+     "kubernetesNetworkConfig": {
+      "ipFamily": "ipv4"
+     },
+     "resourcesVpcConfig": {
+      "subnetIds": [
+       {
+        "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzAA8DA57B8"
+       },
+       {
+        "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzB30FC3688"
+       }
+      ],
+      "securityGroupIds": [
+       {
+        "Fn::GetAtt": [
+         "JenkinsEksClusterControlPlaneSecurityGroup6598A4D5",
+         "GroupId"
+        ]
+       }
+      ],
+      "endpointPublicAccess": true,
+      "endpointPrivateAccess": true
+     },
+     "logging": {
+      "clusterLogging": [
+       {
+        "enabled": true,
+        "types": [
+         "api",
+         "audit",
+         "authenticator",
+         "controllerManager",
+         "scheduler"
+        ]
+       }
+      ]
+     },
+     "accessConfig": {}
+    },
+    "AssumeRoleArn": {
+     "Fn::GetAtt": [
+      "JenkinsEksClusterCreationRole74EBB5F9",
+      "Arn"
+     ]
+    },
+    "AttributesRevision": 5
+   },
+   "DependsOn": [
+    "JenkinsEksClusterCreationRoleDefaultPolicy1ACEA1D3",
+    "JenkinsEksClusterCreationRole74EBB5F9"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/Resource/Resource/Default"
+   }
+  },
+  "JenkinsEksClusterKubectlReadyBarrierE47ECF7F": {
+   "Type": "AWS::SSM::Parameter",
+   "Properties": {
+    "Type": "String",
+    "Value": "aws:cdk:eks:kubectl-ready"
+   },
+   "DependsOn": [
+    "JenkinsEksClusterCreationRoleDefaultPolicy1ACEA1D3",
+    "JenkinsEksClusterCreationRole74EBB5F9",
+    "JenkinsEksCluster57AD7EB2"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/KubectlReadyBarrier"
+   }
+  },
+  "JenkinsEksClusterOpenIdConnectProvider862107FE": {
+   "Type": "Custom::AWSCDKOpenIdConnectProvider",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomAWSCDKOpenIdConnectProviderCustomResourceProviderHandlerF2C543E0",
+      "Arn"
+     ]
+    },
+    "ClientIDList": [
+     "sts.amazonaws.com"
+    ],
+    "Url": {
+     "Fn::GetAtt": [
+      "JenkinsEksCluster57AD7EB2",
+      "OpenIdConnectIssuerUrl"
+     ]
+    },
+    "RejectUnauthorized": true,
+    "CodeHash": "d75c48c9f82cde63e9bf414df335e84e8ac24f11eb34889be255b702aec71e50"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksCluster/OpenIdConnectProvider/Resource/Default"
+   }
+  },
+  "awscdkawseksClusterResourceProviderNestedStackawscdkawseksClusterResourceProviderNestedStackResource9827C454": {
+   "Type": "AWS::CloudFormation::Stack",
+   "Properties": {
+    "TemplateURL": {
+     "Fn::Join": [
+      "",
+      [
+       "https://s3.us-west-2.",
+       {
+        "Ref": "AWS::URLSuffix"
+       },
+       "/cdk-hnb659fds-assets-450683699755-us-west-2/c1342f841bef6c1c8c7673740b60265b5eb884b444c36604c8f3d95ae6f2b6bb.json"
+      ]
+     ]
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/@aws-cdk--aws-eks.ClusterResourceProvider.NestedStack/@aws-cdk--aws-eks.ClusterResourceProvider.NestedStackResource",
+    "aws:asset:path": "JenkinsEksStackawscdkawseksClusterResourceProvider5A3A9E16.nested.template.json",
+    "aws:asset:property": "TemplateURL"
+   }
+  },
+  "awscdkawseksKubectlProviderNestedStackawscdkawseksKubectlProviderNestedStackResourceA7AEBA6B": {
+   "Type": "AWS::CloudFormation::Stack",
+   "Properties": {
+    "Parameters": {
+     "referencetoJenkinsEksStackKubectlLayer9484F7B7Ref": {
+      "Ref": "KubectlLayer600207B5"
+     },
+     "referencetoJenkinsEksStackJenkinsEksClusterKubectlHandlerRole53703EA7Arn": {
+      "Fn::GetAtt": [
+       "JenkinsEksClusterKubectlHandlerRoleDB395AFE",
+       "Arn"
+      ]
+     },
+     "referencetoJenkinsEksStackJenkinsEksCluster63351F7AClusterSecurityGroupId": {
+      "Fn::GetAtt": [
+       "JenkinsEksCluster57AD7EB2",
+       "ClusterSecurityGroupId"
+      ]
+     }
+    },
+    "TemplateURL": {
+     "Fn::Join": [
+      "",
+      [
+       "https://s3.us-west-2.",
+       {
+        "Ref": "AWS::URLSuffix"
+       },
+       "/cdk-hnb659fds-assets-450683699755-us-west-2/d011ea63e9ebb2da3873abd7ae24b95f8dc803bc86dc34b1a1d91543a5cf6ee5.json"
+      ]
+     ]
+    }
+   },
+   "DependsOn": [
+    "JenkinsEksClusterKubectlHandlerRoleDefaultPolicyE32039FF",
+    "JenkinsEksClusterKubectlHandlerRoleDB395AFE"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/@aws-cdk--aws-eks.KubectlProvider.NestedStack/@aws-cdk--aws-eks.KubectlProvider.NestedStackResource",
+    "aws:asset:path": "JenkinsEksStackawscdkawseksKubectlProvider15AB77D5.nested.template.json",
+    "aws:asset:property": "TemplateURL"
+   }
+  },
+  "CustomAWSCDKOpenIdConnectProviderCustomResourceProviderRole517FED65": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ]
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+     }
+    ],
+    "Policies": [
+     {
+      "PolicyName": "Inline",
+      "PolicyDocument": {
+       "Version": "2012-10-17",
+       "Statement": [
+        {
+         "Effect": "Allow",
+         "Resource": "*",
+         "Action": [
+          "iam:CreateOpenIDConnectProvider",
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:UpdateOpenIDConnectProviderThumbprint",
+          "iam:AddClientIDToOpenIDConnectProvider",
+          "iam:RemoveClientIDFromOpenIDConnectProvider"
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/Custom::AWSCDKOpenIdConnectProviderCustomResourceProvider/Role"
+   }
+  },
+  "CustomAWSCDKOpenIdConnectProviderCustomResourceProviderHandlerF2C543E0": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-west-2",
+     "S3Key": "d75c48c9f82cde63e9bf414df335e84e8ac24f11eb34889be255b702aec71e50.zip"
+    },
+    "Timeout": 900,
+    "MemorySize": 128,
+    "Handler": "__entrypoint__.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "CustomAWSCDKOpenIdConnectProviderCustomResourceProviderRole517FED65",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x"
+   },
+   "DependsOn": [
+    "CustomAWSCDKOpenIdConnectProviderCustomResourceProviderRole517FED65"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/Custom::AWSCDKOpenIdConnectProviderCustomResourceProvider/Handler",
+    "aws:asset:path": "asset.d75c48c9f82cde63e9bf414df335e84e8ac24f11eb34889be255b702aec71e50",
+    "aws:asset:property": "Code"
+   }
+  },
+  "JenkinsEfsFileSystem6EF31F85": {
+   "Type": "AWS::EFS::FileSystem",
+   "Properties": {
+    "BackupPolicy": {
+     "Status": "ENABLED"
+    },
+    "Encrypted": true,
+    "FileSystemPolicy": {
+     "Statement": [
+      {
+       "Action": [
+        "elasticfilesystem:ClientRootAccess",
+        "elasticfilesystem:ClientWrite"
+       ],
+       "Condition": {
+        "Bool": {
+         "elasticfilesystem:AccessedViaMountTarget": "true"
+        }
+       },
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": "*"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "FileSystemTags": [
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-efs"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster Persistent Storage"
+     }
+    ],
+    "LifecyclePolicies": [
+     {
+      "TransitionToIA": "AFTER_30_DAYS"
+     }
+    ],
+    "PerformanceMode": "generalPurpose",
+    "ThroughputMode": "bursting"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsFileSystem/Resource"
+   }
+  },
+  "JenkinsEfsFileSystemEfsSecurityGroup85356B7B": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "JenkinsEksStack/JenkinsEfsFileSystem/EfsSecurityGroup",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-efs"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins EKS Cluster Persistent Storage"
+     }
+    ],
+    "VpcId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefJenkinsVpc6E47CFBB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsFileSystem/EfsSecurityGroup/Resource"
+   }
+  },
+  "JenkinsEfsFileSystemEfsMountTargetImportedPrivateSubnetAzA14A7D0D4": {
+   "Type": "AWS::EFS::MountTarget",
+   "Properties": {
+    "FileSystemId": {
+     "Ref": "JenkinsEfsFileSystem6EF31F85"
+    },
+    "SecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "JenkinsEfsFileSystemEfsSecurityGroup85356B7B",
+       "GroupId"
+      ]
+     }
+    ],
+    "SubnetId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzAA8DA57B8"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsFileSystem/EfsMountTarget-ImportedPrivateSubnetAzA"
+   }
+  },
+  "JenkinsEfsFileSystemEfsMountTargetImportedPrivateSubnetAzB9A9F5339": {
+   "Type": "AWS::EFS::MountTarget",
+   "Properties": {
+    "FileSystemId": {
+     "Ref": "JenkinsEfsFileSystem6EF31F85"
+    },
+    "SecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "JenkinsEfsFileSystemEfsSecurityGroup85356B7B",
+       "GroupId"
+      ]
+     }
+    ],
+    "SubnetId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzB30FC3688"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsFileSystem/EfsMountTarget-ImportedPrivateSubnetAzB"
+   }
+  },
+  "JenkinsEfsBackupVaultECF09940": {
+   "Type": "AWS::Backup::BackupVault",
+   "Properties": {
+    "BackupVaultName": "jenkins-eks-efs-backup-vault"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsBackupVault/Resource"
+   }
+  },
+  "JenkinsEfsBackupPlan7202F137": {
+   "Type": "AWS::Backup::BackupPlan",
+   "Properties": {
+    "BackupPlan": {
+     "BackupPlanName": "jenkins-eks-efs-daily-backup",
+     "BackupPlanRule": [
+      {
+       "CompletionWindowMinutes": 120,
+       "Lifecycle": {
+        "DeleteAfterDays": 30
+       },
+       "RuleName": "DailyBackup",
+       "ScheduleExpression": "cron(0 2 * * ? *)",
+       "StartWindowMinutes": 60,
+       "TargetBackupVault": {
+        "Fn::GetAtt": [
+         "JenkinsEfsBackupVaultECF09940",
+         "BackupVaultName"
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsBackupPlan/Resource"
+   }
+  },
+  "JenkinsEfsBackupPlanJenkinsEfsBackupSelectionRole2B1E391E": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "backup.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsBackupPlan/JenkinsEfsBackupSelection/Role/Resource"
+   }
+  },
+  "JenkinsEfsBackupPlanJenkinsEfsBackupSelection4F07A795": {
+   "Type": "AWS::Backup::BackupSelection",
+   "Properties": {
+    "BackupPlanId": {
+     "Fn::GetAtt": [
+      "JenkinsEfsBackupPlan7202F137",
+      "BackupPlanId"
+     ]
+    },
+    "BackupSelection": {
+     "IamRoleArn": {
+      "Fn::GetAtt": [
+       "JenkinsEfsBackupPlanJenkinsEfsBackupSelectionRole2B1E391E",
+       "Arn"
+      ]
+     },
+     "Resources": [
+      {
+       "Fn::Join": [
+        "",
+        [
+         "arn:aws:elasticfilesystem:us-west-2:450683699755:file-system/",
+         {
+          "Ref": "JenkinsEfsFileSystem6EF31F85"
+         }
+        ]
+       ]
+      }
+     ],
+     "SelectionName": "JenkinsEfsBackupSelection"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEfsBackupPlan/JenkinsEfsBackupSelection/Resource"
+   }
+  },
+  "JenkinsArtifactsBucket14141A05": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "BucketName": "jenkins-450683699755-us-west-2-artifacts",
+    "LifecycleConfiguration": {
+     "Rules": [
+      {
+       "Id": "TransitionToIntelligentTiering",
+       "Status": "Enabled",
+       "Transitions": [
+        {
+         "StorageClass": "INTELLIGENT_TIERING",
+         "TransitionInDays": 30
+        }
+       ]
+      },
+      {
+       "ExpirationInDays": 90,
+       "Id": "DeleteOldObjects",
+       "Status": "Enabled"
+      }
+     ]
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     },
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-450683699755-us-west-2-artifacts"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins Job State and Artifacts Storage"
+     }
+    ],
+    "VersioningConfiguration": {
+     "Status": "Enabled"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsArtifactsBucket/Resource"
+   }
+  },
+  "JenkinsArtifactsBucketPolicyCBFBBA3E": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "JenkinsArtifactsBucket14141A05"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:PutBucketPolicy"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "JenkinsArtifactsBucket14141A05",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "JenkinsArtifactsBucket14141A05",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsArtifactsBucket/Policy/Resource"
+   }
+  },
+  "JenkinsArtifactsBucketAutoDeleteObjectsCustomResource3A78B4FB": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "JenkinsArtifactsBucket14141A05"
+    }
+   },
+   "DependsOn": [
+    "JenkinsArtifactsBucketPolicyCBFBBA3E"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsArtifactsBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ]
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role"
+   }
+  },
+  "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-west-2",
+     "S3Key": "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6.zip"
+    },
+    "Timeout": 900,
+    "MemorySize": 128,
+    "Handler": "index.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Description": {
+     "Fn::Join": [
+      "",
+      [
+       "Lambda function for auto-deleting objects in ",
+       {
+        "Ref": "JenkinsArtifactsBucket14141A05"
+       },
+       " S3 bucket."
+      ]
+     ]
+    }
+   },
+   "DependsOn": [
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler",
+    "aws:asset:path": "asset.faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6",
+    "aws:asset:property": "Code"
+   }
+  },
+  "GitHubWebhookSecret510FCFBC": {
+   "Type": "AWS::SecretsManager::Secret",
+   "Properties": {
+    "Description": "GitHub webhook secret for Jenkins CI/CD pipeline validation",
+    "GenerateSecretString": {
+     "ExcludePunctuation": true,
+     "GenerateStringKey": "secret",
+     "PasswordLength": 64,
+     "SecretStringTemplate": "{}"
+    },
+    "Name": "jenkins/github-webhook-secret",
+    "Tags": [
+     {
+      "Key": "Environment",
+      "Value": "Production"
+     },
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-github-webhook-secret"
+     },
+     {
+      "Key": "Project",
+      "Value": "Jenkins"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "GitHub Webhook Validation"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/GitHubWebhookSecret/Resource"
+   }
+  },
+  "JenkinsControllerRoleConditionB9C8E963": {
+   "Type": "Custom::AWSCDKCfnJson",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "AWSCDKCfnUtilsProviderCustomResourceProviderHandlerCF82AA57",
+      "Arn"
+     ]
+    },
+    "Value": {
+     "Fn::Join": [
+      "",
+      [
+       "{\"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "https://",
+           {
+            "Fn::GetAtt": [
+             "JenkinsEksCluster57AD7EB2",
+             "OpenIdConnectIssuerUrl"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       ":sub\":\"system:serviceaccount:jenkins:jenkins-controller\",\"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "https://",
+           {
+            "Fn::GetAtt": [
+             "JenkinsEksCluster57AD7EB2",
+             "OpenIdConnectIssuerUrl"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       ":aud\":\"sts.amazonaws.com\"}"
+      ]
+     ]
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsControllerRoleCondition/Resource/Default"
+   }
+  },
+  "AWSCDKCfnUtilsProviderCustomResourceProviderRoleFE0EE867": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ]
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/AWSCDKCfnUtilsProviderCustomResourceProvider/Role"
+   }
+  },
+  "AWSCDKCfnUtilsProviderCustomResourceProviderHandlerCF82AA57": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": "cdk-hnb659fds-assets-450683699755-us-west-2",
+     "S3Key": "c398d076c966a47ee4ef862fbaf5ea530bf035b867a0195292c99f77b323ed80.zip"
+    },
+    "Timeout": 900,
+    "MemorySize": 128,
+    "Handler": "__entrypoint__.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "AWSCDKCfnUtilsProviderCustomResourceProviderRoleFE0EE867",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x"
+   },
+   "DependsOn": [
+    "AWSCDKCfnUtilsProviderCustomResourceProviderRoleFE0EE867"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/AWSCDKCfnUtilsProviderCustomResourceProvider/Handler",
+    "aws:asset:path": "asset.c398d076c966a47ee4ef862fbaf5ea530bf035b867a0195292c99f77b323ed80",
+    "aws:asset:property": "Code"
+   }
+  },
+  "JenkinsControllerRole": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Effect": "Allow",
+       "Principal": {
+        "Federated": {
+         "Ref": "JenkinsEksClusterOpenIdConnectProvider862107FE"
+        }
+       },
+       "Action": "sts:AssumeRoleWithWebIdentity",
+       "Condition": {
+        "StringEquals": {
+         "Fn::GetAtt": [
+          "JenkinsControllerRoleConditionB9C8E963",
+          "Value"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Description": "IAM role for Jenkins controller to deploy and manage AWS infrastructure",
+    "MaxSessionDuration": 3600,
+    "Policies": [
+     {
+      "PolicyDocument": {
+       "Statement": [
+        {
+         "Action": [
+          "cloudformation:CreateStack",
+          "cloudformation:UpdateStack",
+          "cloudformation:DeleteStack",
+          "cloudformation:DescribeStacks",
+          "cloudformation:DescribeStackEvents",
+          "cloudformation:DescribeStackResources",
+          "cloudformation:GetTemplate",
+          "cloudformation:ValidateTemplate",
+          "cloudformation:ListStacks",
+          "cloudformation:ListStackResources"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "s3:CreateBucket",
+          "s3:DeleteBucket",
+          "s3:ListBucket",
+          "s3:GetBucketLocation",
+          "s3:GetBucketVersioning",
+          "s3:PutBucketVersioning",
+          "s3:GetBucketTagging",
+          "s3:PutBucketTagging",
+          "s3:GetBucketPolicy",
+          "s3:PutBucketPolicy",
+          "s3:DeleteBucketPolicy",
+          "s3:GetEncryptionConfiguration",
+          "s3:PutEncryptionConfiguration"
+         ],
+         "Effect": "Allow",
+         "Resource": "arn:aws:s3:::*"
+        },
+        {
+         "Action": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetObjectVersion",
+          "s3:DeleteObjectVersion"
+         ],
+         "Effect": "Allow",
+         "Resource": [
+          "arn:aws:s3:::jenkins-*-artifacts/*",
+          "arn:aws:s3:::terraform-state-*/*",
+          "arn:aws:s3:::*-terraform-state/*"
+         ]
+        },
+        {
+         "Action": [
+          "dynamodb:CreateTable",
+          "dynamodb:DeleteTable",
+          "dynamodb:DescribeTable",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan",
+          "dynamodb:Query",
+          "dynamodb:UpdateItem",
+          "dynamodb:UpdateTable",
+          "dynamodb:ListTables",
+          "dynamodb:TagResource",
+          "dynamodb:UntagResource"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "ec2:Describe*",
+          "ec2:CreateTags",
+          "ec2:DeleteTags",
+          "ec2:CreateSecurityGroup",
+          "ec2:DeleteSecurityGroup",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:RevokeSecurityGroupIngress",
+          "ec2:RevokeSecurityGroupEgress",
+          "ec2:CreateKeyPair",
+          "ec2:DeleteKeyPair",
+          "ec2:RunInstances",
+          "ec2:TerminateInstances",
+          "ec2:StartInstances",
+          "ec2:StopInstances",
+          "ec2:RebootInstances",
+          "ec2:ModifyInstanceAttribute"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "ec2:CreateVpc",
+          "ec2:DeleteVpc",
+          "ec2:ModifyVpcAttribute",
+          "ec2:CreateSubnet",
+          "ec2:DeleteSubnet",
+          "ec2:ModifySubnetAttribute",
+          "ec2:CreateRouteTable",
+          "ec2:DeleteRouteTable",
+          "ec2:CreateRoute",
+          "ec2:DeleteRoute",
+          "ec2:AssociateRouteTable",
+          "ec2:DisassociateRouteTable",
+          "ec2:CreateInternetGateway",
+          "ec2:DeleteInternetGateway",
+          "ec2:AttachInternetGateway",
+          "ec2:DetachInternetGateway",
+          "ec2:CreateNatGateway",
+          "ec2:DeleteNatGateway",
+          "ec2:AllocateAddress",
+          "ec2:ReleaseAddress",
+          "ec2:AssociateAddress",
+          "ec2:DisassociateAddress",
+          "ec2:CreateVpcEndpoint",
+          "ec2:DeleteVpcEndpoint",
+          "ec2:ModifyVpcEndpoint"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "iam:GetRole",
+          "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:ListAttachedRolePolicies",
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:UpdateRole",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:PassRole",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:ListPolicyVersions",
+          "iam:CreatePolicy",
+          "iam:DeletePolicy",
+          "iam:CreatePolicyVersion",
+          "iam:DeletePolicyVersion"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:DescribeNodegroup",
+          "eks:ListNodegroups",
+          "eks:DescribeUpdate",
+          "eks:ListUpdates",
+          "eks:CreateCluster",
+          "eks:DeleteCluster",
+          "eks:UpdateClusterConfig",
+          "eks:UpdateClusterVersion",
+          "eks:CreateNodegroup",
+          "eks:DeleteNodegroup",
+          "eks:UpdateNodegroupConfig",
+          "eks:UpdateNodegroupVersion",
+          "eks:TagResource",
+          "eks:UntagResource"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "sts:AssumeRole",
+          "sts:GetCallerIdentity",
+          "sts:GetSessionToken"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+         ],
+         "Effect": "Allow",
+         "Resource": "arn:aws:secretsmanager:us-west-2:450683699755:secret:jenkins/*"
+        },
+        {
+         "Action": [
+          "kms:Decrypt",
+          "kms:DescribeKey"
+         ],
+         "Condition": {
+          "StringEquals": {
+           "kms:ViaService": "secretsmanager.us-west-2.amazonaws.com"
+          }
+         },
+         "Effect": "Allow",
+         "Resource": "*"
+        }
+       ],
+       "Version": "2012-10-17"
+      },
+      "PolicyName": "JenkinsControllerInfrastructureDeploymentPolicy"
+     }
+    ],
+    "RoleName": "jenkins-eks-controller-role",
+    "Tags": [
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-controller-role"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins Controller IAM Role for AWS Infrastructure Deployment"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsControllerRole"
+   }
+  },
+  "ClusterAutoscalerRoleConditionB4DA431F": {
+   "Type": "Custom::AWSCDKCfnJson",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "AWSCDKCfnUtilsProviderCustomResourceProviderHandlerCF82AA57",
+      "Arn"
+     ]
+    },
+    "Value": {
+     "Fn::Join": [
+      "",
+      [
+       "{\"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "https://",
+           {
+            "Fn::GetAtt": [
+             "JenkinsEksCluster57AD7EB2",
+             "OpenIdConnectIssuerUrl"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       ":sub\":\"system:serviceaccount:kube-system:cluster-autoscaler\",\"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "https://",
+           {
+            "Fn::GetAtt": [
+             "JenkinsEksCluster57AD7EB2",
+             "OpenIdConnectIssuerUrl"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       ":aud\":\"sts.amazonaws.com\"}"
+      ]
+     ]
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/ClusterAutoscalerRoleCondition/Resource/Default"
+   }
+  },
+  "ClusterAutoscalerRole": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Effect": "Allow",
+       "Principal": {
+        "Federated": {
+         "Ref": "JenkinsEksClusterOpenIdConnectProvider862107FE"
+        }
+       },
+       "Action": "sts:AssumeRoleWithWebIdentity",
+       "Condition": {
+        "StringEquals": {
+         "Fn::GetAtt": [
+          "ClusterAutoscalerRoleConditionB4DA431F",
+          "Value"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Description": "IAM role for Cluster Autoscaler to automatically scale EKS node groups",
+    "Policies": [
+     {
+      "PolicyDocument": {
+       "Statement": [
+        {
+         "Action": [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeScalingActivities",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:GetInstanceTypesFromInstanceRequirements",
+          "eks:DescribeNodegroup"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        },
+        {
+         "Action": [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+         ],
+         "Condition": {
+          "StringEquals": {
+           "autoscaling:ResourceTag/k8s.io/cluster-autoscaler/enabled": "true"
+          }
+         },
+         "Effect": "Allow",
+         "Resource": "*"
+        }
+       ],
+       "Version": "2012-10-17"
+      },
+      "PolicyName": "ClusterAutoscalerPolicy"
+     }
+    ],
+    "RoleName": "jenkins-eks-cluster-autoscaler-role",
+    "Tags": [
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-cluster-autoscaler-role"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Cluster Autoscaler IAM Role for EKS Node Group Scaling"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/ClusterAutoscalerRole"
+   }
+  },
+  "EfsCsiDriverRoleCondition09DDC6A7": {
+   "Type": "Custom::AWSCDKCfnJson",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "AWSCDKCfnUtilsProviderCustomResourceProviderHandlerCF82AA57",
+      "Arn"
+     ]
+    },
+    "Value": {
+     "Fn::Join": [
+      "",
+      [
+       "{\"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "https://",
+           {
+            "Fn::GetAtt": [
+             "JenkinsEksCluster57AD7EB2",
+             "OpenIdConnectIssuerUrl"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       ":sub\":\"system:serviceaccount:kube-system:efs-csi-controller-sa\",\"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "https://",
+           {
+            "Fn::GetAtt": [
+             "JenkinsEksCluster57AD7EB2",
+             "OpenIdConnectIssuerUrl"
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       ":aud\":\"sts.amazonaws.com\"}"
+      ]
+     ]
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/EfsCsiDriverRoleCondition/Resource/Default"
+   }
+  },
+  "EfsCsiDriverRole": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Effect": "Allow",
+       "Principal": {
+        "Federated": {
+         "Ref": "JenkinsEksClusterOpenIdConnectProvider862107FE"
+        }
+       },
+       "Action": "sts:AssumeRoleWithWebIdentity",
+       "Condition": {
+        "StringEquals": {
+         "Fn::GetAtt": [
+          "EfsCsiDriverRoleCondition09DDC6A7",
+          "Value"
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Description": "IAM role for EFS CSI Driver to manage EFS access points and mount targets",
+    "Policies": [
+     {
+      "PolicyDocument": {
+       "Statement": [
+        {
+         "Action": [
+          "elasticfilesystem:DescribeAccessPoints",
+          "elasticfilesystem:DescribeFileSystems",
+          "elasticfilesystem:DescribeMountTargets",
+          "elasticfilesystem:CreateAccessPoint",
+          "elasticfilesystem:DeleteAccessPoint",
+          "elasticfilesystem:TagResource"
+         ],
+         "Effect": "Allow",
+         "Resource": "*"
+        }
+       ],
+       "Version": "2012-10-17"
+      },
+      "PolicyName": "EfsCsiDriverPolicy"
+     }
+    ],
+    "RoleName": "jenkins-eks-efs-csi-driver-role",
+    "Tags": [
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-efs-csi-driver-role"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "EFS CSI Driver IAM Role for Dynamic Volume Provisioning"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/EfsCsiDriverRole"
+   }
+  },
+  "ControllerNodeRole99C23D00": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "ec2.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Description": "IAM role for EKS controller node group worker nodes",
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEKSWorkerNodePolicy"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEKS_CNI_Policy"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonSSMManagedInstanceCore"
+       ]
+      ]
+     }
+    ],
+    "RoleName": "jenkins-eks-controller-node-role"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/ControllerNodeRole/Resource"
+   }
+  },
+  "ControllerNodeGroup": {
+   "Type": "AWS::EKS::Nodegroup",
+   "Properties": {
+    "AmiType": "AL2023_ARM_64_STANDARD",
+    "CapacityType": "ON_DEMAND",
+    "ClusterName": {
+     "Ref": "JenkinsEksCluster57AD7EB2"
+    },
+    "InstanceTypes": [
+     "t4g.xlarge"
+    ],
+    "Labels": {
+     "workload-type": "jenkins-controller"
+    },
+    "NodeRole": {
+     "Fn::GetAtt": [
+      "ControllerNodeRole99C23D00",
+      "Arn"
+     ]
+    },
+    "NodegroupName": "jenkins-controller-nodegroup",
+    "ScalingConfig": {
+     "DesiredSize": 1,
+     "MaxSize": 2,
+     "MinSize": 1
+    },
+    "Subnets": [
+     {
+      "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzAA8DA57B8"
+     },
+     {
+      "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzB30FC3688"
+     }
+    ],
+    "Tags": {
+     "ManagedBy": "AWS CDK",
+     "Name": "jenkins-controller-nodegroup",
+     "Purpose": "Jenkins Controller On-Demand Instances",
+     "workload-type": "jenkins-controller"
+    },
+    "Taints": [
+     {
+      "Effect": "NO_SCHEDULE",
+      "Key": "workload-type",
+      "Value": "jenkins-controller"
+     }
+    ],
+    "UpdateConfig": {
+     "MaxUnavailable": 1
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/ControllerNodeGroup"
+   }
+  },
+  "AgentNodeRoleD3EF0314": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "ec2.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Description": "IAM role for EKS agent node group worker nodes (spot instances)",
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEKSWorkerNodePolicy"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonEKS_CNI_Policy"
+       ]
+      ]
+     },
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AmazonSSMManagedInstanceCore"
+       ]
+      ]
+     }
+    ],
+    "RoleName": "jenkins-eks-agent-node-role"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/AgentNodeRole/Resource"
+   }
+  },
+  "AgentNodeGroup": {
+   "Type": "AWS::EKS::Nodegroup",
+   "Properties": {
+    "CapacityType": "SPOT",
+    "ClusterName": {
+     "Ref": "JenkinsEksCluster57AD7EB2"
+    },
+    "InstanceTypes": [
+     "m5.large",
+     "m5.xlarge",
+     "m5a.large",
+     "m5a.xlarge",
+     "m6i.large",
+     "m6i.xlarge"
+    ],
+    "Labels": {
+     "workload-type": "jenkins-agent",
+     "node-lifecycle": "spot"
+    },
+    "NodeRole": {
+     "Fn::GetAtt": [
+      "AgentNodeRoleD3EF0314",
+      "Arn"
+     ]
+    },
+    "NodegroupName": "jenkins-agent-nodegroup",
+    "ScalingConfig": {
+     "DesiredSize": 0,
+     "MaxSize": 10,
+     "MinSize": 0
+    },
+    "Subnets": [
+     {
+      "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzAA8DA57B8"
+     },
+     {
+      "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefPrivateSubnetAzB30FC3688"
+     }
+    ],
+    "Tags": {
+     "k8s.io/cluster-autoscaler/enabled": "true",
+     "k8s.io/cluster-autoscaler/jenkins-eks-cluster": "owned",
+     "ManagedBy": "AWS CDK",
+     "Name": "jenkins-agent-nodegroup",
+     "node-lifecycle": "spot",
+     "Purpose": "Jenkins Agent Spot Instances",
+     "workload-type": "jenkins-agent"
+    },
+    "UpdateConfig": {
+     "MaxUnavailable": 1
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/AgentNodeGroup"
+   }
+  },
+  "JenkinsControllerSecurityGroup": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Security group for Jenkins controller - allows HTTP (8080) and JNLP (50000) traffic",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic",
+      "IpProtocol": "-1"
+     }
+    ],
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "10.0.0.0/16",
+      "Description": "Allow HTTP traffic from VPC CIDR for Jenkins web UI",
+      "FromPort": 8080,
+      "IpProtocol": "tcp",
+      "ToPort": 8080
+     },
+     {
+      "CidrIp": "10.0.0.0/16",
+      "Description": "Allow JNLP traffic from VPC CIDR for agent connections",
+      "FromPort": 50000,
+      "IpProtocol": "tcp",
+      "ToPort": 50000
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-controller-sg"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins Controller Security Group"
+     }
+    ],
+    "VpcId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefJenkinsVpc6E47CFBB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsControllerSecurityGroup"
+   }
+  },
+  "JenkinsAgentSecurityGroup": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Security group for Jenkins agents - allows ephemeral ports from controller",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic",
+      "IpProtocol": "-1"
+     }
+    ],
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "10.0.0.0/16",
+      "Description": "Allow ephemeral ports from VPC CIDR (controller to agent communication)",
+      "FromPort": 32768,
+      "IpProtocol": "tcp",
+      "ToPort": 65535
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "ManagedBy",
+      "Value": "AWS CDK"
+     },
+     {
+      "Key": "Name",
+      "Value": "jenkins-eks-agent-sg"
+     },
+     {
+      "Key": "Purpose",
+      "Value": "Jenkins Agent Security Group"
+     }
+    ],
+    "VpcId": {
+     "Fn::ImportValue": "JenkinsNetworkStack:ExportsOutputRefJenkinsVpc6E47CFBB"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsAgentSecurityGroup"
+   }
+  },
+  "JenkinsEksAlarmTopicEF39E4FF": {
+   "Type": "AWS::SNS::Topic",
+   "Properties": {
+    "DisplayName": "Jenkins EKS Cluster Alarms",
+    "TopicName": "jenkins-eks-alarms"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/JenkinsEksAlarmTopic/Resource"
+   }
+  },
+  "ClusterHealthAlarm4C0194F1": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmActions": [
+     {
+      "Ref": "JenkinsEksAlarmTopicEF39E4FF"
+     }
+    ],
+    "AlarmDescription": "Alert when EKS cluster is unhealthy",
+    "AlarmName": "jenkins-eks-cluster-health",
+    "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+    "Dimensions": [
+     {
+      "Name": "ClusterName",
+      "Value": {
+       "Ref": "JenkinsEksCluster57AD7EB2"
+      }
+     }
+    ],
+    "EvaluationPeriods": 2,
+    "MetricName": "cluster_failed_node_count",
+    "Namespace": "AWS/EKS",
+    "Period": 300,
+    "Statistic": "Average",
+    "Threshold": 1,
+    "TreatMissingData": "notBreaching"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/ClusterHealthAlarm/Resource"
+   }
+  },
+  "NodeFailureAlarm5D4FD391": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmActions": [
+     {
+      "Ref": "JenkinsEksAlarmTopicEF39E4FF"
+     }
+    ],
+    "AlarmDescription": "Alert when EKS nodes fail or become unavailable",
+    "AlarmName": "jenkins-eks-node-failure",
+    "ComparisonOperator": "LessThanThreshold",
+    "Dimensions": [
+     {
+      "Name": "ClusterName",
+      "Value": {
+       "Ref": "JenkinsEksCluster57AD7EB2"
+      }
+     }
+    ],
+    "EvaluationPeriods": 3,
+    "MetricName": "node_number_of_running_pods",
+    "Namespace": "ContainerInsights",
+    "Period": 300,
+    "Statistic": "Average",
+    "Threshold": 1,
+    "TreatMissingData": "breaching"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/NodeFailureAlarm/Resource"
+   }
+  },
+  "DiskSpaceAlarmA05EDE02": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmActions": [
+     {
+      "Ref": "JenkinsEksAlarmTopicEF39E4FF"
+     }
+    ],
+    "AlarmDescription": "Alert when node disk utilization exceeds 80%",
+    "AlarmName": "jenkins-eks-disk-space",
+    "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+    "Dimensions": [
+     {
+      "Name": "ClusterName",
+      "Value": {
+       "Ref": "JenkinsEksCluster57AD7EB2"
+      }
+     }
+    ],
+    "EvaluationPeriods": 2,
+    "MetricName": "node_filesystem_utilization",
+    "Namespace": "ContainerInsights",
+    "Period": 300,
+    "Statistic": "Average",
+    "Threshold": 80,
+    "TreatMissingData": "notBreaching"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/DiskSpaceAlarm/Resource"
+   }
+  },
+  "PendingPodsAlarm1C210933": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmActions": [
+     {
+      "Ref": "JenkinsEksAlarmTopicEF39E4FF"
+     }
+    ],
+    "AlarmDescription": "Alert when pending pods exceed 5 for more than 10 minutes",
+    "AlarmName": "jenkins-eks-pending-pods",
+    "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+    "Dimensions": [
+     {
+      "Name": "ClusterName",
+      "Value": {
+       "Ref": "JenkinsEksCluster57AD7EB2"
+      }
+     }
+    ],
+    "EvaluationPeriods": 2,
+    "MetricName": "cluster_number_of_running_pods",
+    "Namespace": "ContainerInsights",
+    "Period": 300,
+    "Statistic": "Average",
+    "Threshold": 5,
+    "TreatMissingData": "notBreaching"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/PendingPodsAlarm/Resource"
+   }
+  },
+  "SpotInterruptionAlarm8F024362": {
+   "Type": "AWS::CloudWatch::Alarm",
+   "Properties": {
+    "AlarmActions": [
+     {
+      "Ref": "JenkinsEksAlarmTopicEF39E4FF"
+     }
+    ],
+    "AlarmDescription": "Alert when spot instance interruptions occur",
+    "AlarmName": "jenkins-eks-spot-interruption",
+    "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+    "EvaluationPeriods": 1,
+    "MetricName": "InterruptionRate",
+    "Namespace": "AWS/EC2Spot",
+    "Period": 300,
+    "Statistic": "Sum",
+    "Threshold": 1,
+    "TreatMissingData": "notBreaching"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/SpotInterruptionAlarm/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/+VYX08jNxD/LOfHk9lSeGjFWwh3p2vhiEiEVEUITexJYuK1V/YYGq32u1e2dzcLFHSUclLpQxTbY8//Gf/WB8XB4a/F/ge483tCbva0WhT1lEBsONz561pDuZBQ1KewRXeJzitr5jUTViI7Yh8ZZ8KWFZBaaLwIhlSJviVI9MKpipQ1aaW54uOlGTJquD+8Bu+RfDGKf9wfFvVxEBukY/DI83Bes0UafIOyk3qbOaBkR+QCcoZGuG0nbHp4fTb6Nvry6YRxptUSxVZE/XRUbl4zJVs2aGChd0zIgfEqMslGNPypvc0VZw5Lewt6YrUSW3YUDSZnt4wzCGRPUCPh+eIGBfn2EK8ZSHk6VOiF+qRdH9nVC1kNDqYoZMe2/s0G9F4eBGtIbzhufFGPdfCELuZAHj0OSjerxG40DQuDlL3v+/FAKYZGVlYZGgmBfpdDSwiaxlCBULTtUi5LPrWrlTKryAcqldwuFWX3r9GQEkDWpRQ15KzW6M7AwArjmhdrlEGjY1ecbcICBemUm5355xWar3JsjUFBE2dvlUxmB6dbNR7GP+fLs/Tk1W9W4srZUDVcQVnUF1bjvGbgfShRHm/ZUc0qp4xQFeiREDYYalnmPfHASOwKi7My2SWTKNUm+XBtO3JdEbaZM7OTTkSn4LxuqUQg1l+NVgZ7Wp90zxKlPBtK/Q49Xrt/IPo5k36gb/+xqJ0ZD7V/u3C9WNg7OrJyECMyv9dTXxu9N81/ZzUO+u3DG5b/oDzn/x7h3ZqVOn3UhrfXa1Syq8eZjZRHZfp4WcopAWGJJt+dzdPLb83/DZeTr3qUIQ6KeooiOEXbL/GanNcDLPEIVfIdNTO6d7bhuPRF/VlpnG49YXmP2RCY/C0u6XHlDpNV6JbWlWAEnmUUvEKDDvQkuMp6ZJzR2tmwWleB2h2L4DxFqDJAoz0sGH2efbq4Pty/Phn9Me2B2yiQLYGUOAaxCZXvxD8NOpe9jX0tZYfsjI+zs1gzM3ArpIYvEvOizkIuI9aKOHA3G5TlU5JbqLg7w/N4osH0zOJkwGsg4d5K3NbC9Da2IGWHbXcJhBrbGm/LyqG3wYn+2wO0tncX6Mk67MD31VDRKKjVs+d2T9ne6O9gvGPb82q4R+GQfO4PLqW0S98ymfBsv8sZRZjPTMklmNsdzfMZlpUGwodHEvF37LAy/il0kDgJRlCALKNNZPD+zjp5imZF665dPh/lrFDDvfFFPbOVEvOaUfwf2qN8pWH7IAvT7oYLbYO8AxLroh5pcLEgIf4PGKT5ySOvlEhOieiHO3BGmVUXlG56edBZQWuHfm11/zF0CzpbP0GnrOxOpo9Xp7w151V0n3UtgRwCnSnvlVmdAAE7YsbSsUMQ6xiMNhOTBd1902fof8KcxTuy5Z2F5n9pTmoSablpeHoNmhLE73s+Dp5sedF24u5yfs0vg7OWIe8H46UZWyPTg0vqdukdbLw054GqQA8U6d4E0kvVeGl+87HtGyuxuPE/3R7sFz//Uux/uPFK7bn8NFa0T2R/AaQ25Yx2EwAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "JenkinsEksStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Conditions": {
+  "JenkinsEksClusterHasEcrPublicA2DE6B4B": {
+   "Fn::Equals": [
+    {
+     "Ref": "AWS::Partition"
+    },
+    "aws"
+   ]
+  }
+ },
+ "Outputs": {
+  "EksClusterNameOutput": {
+   "Description": "EKS Cluster Name",
+   "Value": {
+    "Ref": "JenkinsEksCluster57AD7EB2"
+   },
+   "Export": {
+    "Name": "JenkinsEksClusterName"
+   }
+  },
+  "EksClusterArnOutput": {
+   "Description": "EKS Cluster ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEksCluster57AD7EB2",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksClusterArn"
+   }
+  },
+  "EksClusterEndpointOutput": {
+   "Description": "EKS Cluster API Endpoint",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEksCluster57AD7EB2",
+     "Endpoint"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksClusterEndpoint"
+   }
+  },
+  "EksClusterVersionOutput": {
+   "Description": "EKS Cluster Kubernetes Version",
+   "Value": "1.32",
+   "Export": {
+    "Name": "JenkinsEksClusterVersion"
+   }
+  },
+  "EksClusterRoleArnOutput": {
+   "Description": "IAM Role ARN for EKS Cluster",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEksClusterRole082DA6FB",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksClusterRoleArn"
+   }
+  },
+  "OidcProviderArnOutput": {
+   "Description": "OIDC Provider ARN for EKS cluster (enables IRSA)",
+   "Value": {
+    "Ref": "JenkinsEksClusterOpenIdConnectProvider862107FE"
+   },
+   "Export": {
+    "Name": "JenkinsEksOidcProviderArn"
+   }
+  },
+  "OidcProviderIssuerOutput": {
+   "Description": "OIDC Provider Issuer URL for EKS cluster",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEksCluster57AD7EB2",
+     "OpenIdConnectIssuerUrl"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksOidcProviderIssuer"
+   }
+  },
+  "EfsFileSystemIdOutput": {
+   "Description": "EFS File System ID for Jenkins persistent storage",
+   "Value": {
+    "Ref": "JenkinsEfsFileSystem6EF31F85"
+   },
+   "Export": {
+    "Name": "JenkinsEksEfsFileSystemId"
+   }
+  },
+  "EfsFileSystemArnOutput": {
+   "Description": "EFS File System ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEfsFileSystem6EF31F85",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksEfsFileSystemArn"
+   }
+  },
+  "BackupVaultNameOutput": {
+   "Description": "AWS Backup Vault Name for EFS backups",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEfsBackupVaultECF09940",
+     "BackupVaultName"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksBackupVaultName"
+   }
+  },
+  "BackupVaultArnOutput": {
+   "Description": "AWS Backup Vault ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEfsBackupVaultECF09940",
+     "BackupVaultArn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksBackupVaultArn"
+   }
+  },
+  "BackupPlanIdOutput": {
+   "Description": "AWS Backup Plan ID for EFS daily backups",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEfsBackupPlan7202F137",
+     "BackupPlanId"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksBackupPlanId"
+   }
+  },
+  "BackupPlanArnOutput": {
+   "Description": "AWS Backup Plan ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsEfsBackupPlan7202F137",
+     "BackupPlanArn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksBackupPlanArn"
+   }
+  },
+  "ArtifactsBucketNameOutput": {
+   "Description": "S3 Bucket Name for Jenkins artifacts and job state",
+   "Value": {
+    "Ref": "JenkinsArtifactsBucket14141A05"
+   },
+   "Export": {
+    "Name": "JenkinsEksArtifactsBucketName"
+   }
+  },
+  "ArtifactsBucketArnOutput": {
+   "Description": "S3 Bucket ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsArtifactsBucket14141A05",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksArtifactsBucketArn"
+   }
+  },
+  "GitHubWebhookSecretArnOutput": {
+   "Description": "ARN of the GitHub webhook secret in Secrets Manager",
+   "Value": {
+    "Ref": "GitHubWebhookSecret510FCFBC"
+   },
+   "Export": {
+    "Name": "JenkinsGitHubWebhookSecretArn"
+   }
+  },
+  "GitHubWebhookSecretNameOutput": {
+   "Description": "Name of the GitHub webhook secret in Secrets Manager",
+   "Value": {
+    "Fn::Join": [
+     "-",
+     [
+      {
+       "Fn::Select": [
+        0,
+        {
+         "Fn::Split": [
+          "-",
+          {
+           "Fn::Select": [
+            6,
+            {
+             "Fn::Split": [
+              ":",
+              {
+               "Ref": "GitHubWebhookSecret510FCFBC"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "Fn::Select": [
+        1,
+        {
+         "Fn::Split": [
+          "-",
+          {
+           "Fn::Select": [
+            6,
+            {
+             "Fn::Split": [
+              ":",
+              {
+               "Ref": "GitHubWebhookSecret510FCFBC"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "Fn::Select": [
+        2,
+        {
+         "Fn::Split": [
+          "-",
+          {
+           "Fn::Select": [
+            6,
+            {
+             "Fn::Split": [
+              ":",
+              {
+               "Ref": "GitHubWebhookSecret510FCFBC"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsGitHubWebhookSecretName"
+   }
+  },
+  "GitHubWebhookSecretRetrievalCommandOutput": {
+   "Description": "Command to retrieve the GitHub webhook secret value",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "aws secretsmanager get-secret-value --secret-id ",
+      {
+       "Fn::Join": [
+        "-",
+        [
+         {
+          "Fn::Select": [
+           0,
+           {
+            "Fn::Split": [
+             "-",
+             {
+              "Fn::Select": [
+               6,
+               {
+                "Fn::Split": [
+                 ":",
+                 {
+                  "Ref": "GitHubWebhookSecret510FCFBC"
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "Fn::Select": [
+           1,
+           {
+            "Fn::Split": [
+             "-",
+             {
+              "Fn::Select": [
+               6,
+               {
+                "Fn::Split": [
+                 ":",
+                 {
+                  "Ref": "GitHubWebhookSecret510FCFBC"
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "Fn::Select": [
+           2,
+           {
+            "Fn::Split": [
+             "-",
+             {
+              "Fn::Select": [
+               6,
+               {
+                "Fn::Split": [
+                 ":",
+                 {
+                  "Ref": "GitHubWebhookSecret510FCFBC"
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       ]
+      },
+      " --region us-west-2 --query SecretString --output text | jq -r .secret"
+     ]
+    ]
+   }
+  },
+  "JenkinsControllerRoleArnOutput": {
+   "Description": "IAM Role ARN for Jenkins controller (use with IRSA)",
+   "Value": {
+    "Fn::GetAtt": [
+     "JenkinsControllerRole",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksControllerRoleArn"
+   }
+  },
+  "JenkinsControllerRoleNameOutput": {
+   "Description": "IAM Role Name for Jenkins controller",
+   "Value": "jenkins-eks-controller-role",
+   "Export": {
+    "Name": "JenkinsEksControllerRoleName"
+   }
+  },
+  "JenkinsControllerServiceAccountAnnotationOutput": {
+   "Description": "Annotation to add to jenkins-controller service account for IRSA",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "eks.amazonaws.com/role-arn: ",
+      {
+       "Fn::GetAtt": [
+        "JenkinsControllerRole",
+        "Arn"
+       ]
+      }
+     ]
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksControllerServiceAccountAnnotation"
+   }
+  },
+  "ClusterAutoscalerRoleArnOutput": {
+   "Description": "IAM Role ARN for Cluster Autoscaler (use with IRSA)",
+   "Value": {
+    "Fn::GetAtt": [
+     "ClusterAutoscalerRole",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksClusterAutoscalerRoleArn"
+   }
+  },
+  "ClusterAutoscalerRoleNameOutput": {
+   "Description": "IAM Role Name for Cluster Autoscaler",
+   "Value": "jenkins-eks-cluster-autoscaler-role",
+   "Export": {
+    "Name": "JenkinsEksClusterAutoscalerRoleName"
+   }
+  },
+  "ClusterAutoscalerServiceAccountAnnotationOutput": {
+   "Description": "Annotation to add to cluster-autoscaler service account for IRSA",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "eks.amazonaws.com/role-arn: ",
+      {
+       "Fn::GetAtt": [
+        "ClusterAutoscalerRole",
+        "Arn"
+       ]
+      }
+     ]
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksClusterAutoscalerServiceAccountAnnotation"
+   }
+  },
+  "EfsCsiDriverRoleArnOutput": {
+   "Description": "IAM Role ARN for EFS CSI Driver (use with IRSA)",
+   "Value": {
+    "Fn::GetAtt": [
+     "EfsCsiDriverRole",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksEfsCsiDriverRoleArn"
+   }
+  },
+  "EfsCsiDriverRoleNameOutput": {
+   "Description": "IAM Role Name for EFS CSI Driver",
+   "Value": "jenkins-eks-efs-csi-driver-role",
+   "Export": {
+    "Name": "JenkinsEksEfsCsiDriverRoleName"
+   }
+  },
+  "EfsCsiDriverServiceAccountAnnotationOutput": {
+   "Description": "Annotation to add to efs-csi-controller-sa service account for IRSA",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "eks.amazonaws.com/role-arn: ",
+      {
+       "Fn::GetAtt": [
+        "EfsCsiDriverRole",
+        "Arn"
+       ]
+      }
+     ]
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksEfsCsiDriverServiceAccountAnnotation"
+   }
+  },
+  "ControllerNodeRoleArnOutput": {
+   "Description": "IAM Role ARN for EKS controller node group",
+   "Value": {
+    "Fn::GetAtt": [
+     "ControllerNodeRole99C23D00",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksControllerNodeRoleArn"
+   }
+  },
+  "ControllerNodeGroupNameOutput": {
+   "Description": "EKS Controller Node Group Name",
+   "Value": "jenkins-controller-nodegroup",
+   "Export": {
+    "Name": "JenkinsEksControllerNodeGroupName"
+   }
+  },
+  "ControllerNodeGroupArnOutput": {
+   "Description": "EKS Controller Node Group ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "ControllerNodeGroup",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksControllerNodeGroupArn"
+   }
+  },
+  "AgentNodeRoleArnOutput": {
+   "Description": "IAM Role ARN for EKS agent node group",
+   "Value": {
+    "Fn::GetAtt": [
+     "AgentNodeRoleD3EF0314",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksAgentNodeRoleArn"
+   }
+  },
+  "AgentNodeGroupNameOutput": {
+   "Description": "EKS Agent Node Group Name",
+   "Value": "jenkins-agent-nodegroup",
+   "Export": {
+    "Name": "JenkinsEksAgentNodeGroupName"
+   }
+  },
+  "AgentNodeGroupArnOutput": {
+   "Description": "EKS Agent Node Group ARN",
+   "Value": {
+    "Fn::GetAtt": [
+     "AgentNodeGroup",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksAgentNodeGroupArn"
+   }
+  },
+  "JenkinsControllerSecurityGroupIdOutput": {
+   "Description": "Security Group ID for Jenkins controller",
+   "Value": {
+    "Ref": "JenkinsControllerSecurityGroup"
+   },
+   "Export": {
+    "Name": "JenkinsEksControllerSecurityGroupId"
+   }
+  },
+  "JenkinsAgentSecurityGroupIdOutput": {
+   "Description": "Security Group ID for Jenkins agents",
+   "Value": {
+    "Ref": "JenkinsAgentSecurityGroup"
+   },
+   "Export": {
+    "Name": "JenkinsEksAgentSecurityGroupId"
+   }
+  },
+  "AlarmTopicArnOutput": {
+   "Description": "SNS Topic ARN for CloudWatch alarm notifications",
+   "Value": {
+    "Ref": "JenkinsEksAlarmTopicEF39E4FF"
+   },
+   "Export": {
+    "Name": "JenkinsEksAlarmTopicArn"
+   }
+  },
+  "ClusterHealthAlarmArnOutput": {
+   "Description": "CloudWatch Alarm ARN for cluster health monitoring",
+   "Value": {
+    "Fn::GetAtt": [
+     "ClusterHealthAlarm4C0194F1",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksClusterHealthAlarmArn"
+   }
+  },
+  "NodeFailureAlarmArnOutput": {
+   "Description": "CloudWatch Alarm ARN for node failure monitoring",
+   "Value": {
+    "Fn::GetAtt": [
+     "NodeFailureAlarm5D4FD391",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksNodeFailureAlarmArn"
+   }
+  },
+  "DiskSpaceAlarmArnOutput": {
+   "Description": "CloudWatch Alarm ARN for disk space monitoring",
+   "Value": {
+    "Fn::GetAtt": [
+     "DiskSpaceAlarmA05EDE02",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksDiskSpaceAlarmArn"
+   }
+  },
+  "PendingPodsAlarmArnOutput": {
+   "Description": "CloudWatch Alarm ARN for pending pods monitoring",
+   "Value": {
+    "Fn::GetAtt": [
+     "PendingPodsAlarm1C210933",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksPendingPodsAlarmArn"
+   }
+  },
+  "SpotInterruptionAlarmArnOutput": {
+   "Description": "CloudWatch Alarm ARN for spot interruption monitoring",
+   "Value": {
+    "Fn::GetAtt": [
+     "SpotInterruptionAlarm8F024362",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "JenkinsEksSpotInterruptionAlarmArn"
+   }
+  },
+  "JenkinsDeploymentInstructionsOutput": {
+   "Description": "Jenkins deployment instructions",
+   "Value": "Deploy Jenkins manually: cd k8s/jenkins && ./deploy.sh (after EFS CSI driver is installed)"
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

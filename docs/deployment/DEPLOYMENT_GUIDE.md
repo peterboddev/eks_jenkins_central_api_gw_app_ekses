@@ -1,17 +1,20 @@
 # Jenkins EKS Cluster - Complete Deployment Guide
 
+**Last Updated**: 2025-02-11
+
 ## Overview
 
-This guide provides step-by-step instructions to deploy the complete Jenkins CI/CD platform on Amazon EKS with cost-optimized spot instances.
+This guide provides step-by-step instructions to deploy the complete Jenkins CI/CD platform on Amazon EKS with cost-optimized spot instances. All infrastructure is managed through AWS CDK following infrastructure-as-code principles.
 
 ## Architecture Summary
 
-- **EKS Cluster**: Kubernetes 1.28 in us-west-2 region
+- **EKS Cluster**: Kubernetes 1.32 in us-west-2 region
 - **Jenkins Controller**: Runs on on-demand instances for high availability
 - **Jenkins Agents**: Run on spot instances for cost optimization
-- **Storage**: EFS for Jenkins home directory, S3 for artifacts
-- **Networking**: Private VPC with NAT Gateways and VPC endpoints
-- **Security**: IRSA for AWS permissions, encryption at rest and in transit
+- **Storage**: EFS for Jenkins home directory (native NFS), S3 for artifacts
+- **Networking**: Private VPC with NAT Gateways and VPC endpoints (deployed in both AZs)
+- **Security**: IRSA for AWS permissions, encryption at rest and in transit, ALB with IP whitelist
+- **Load Balancer**: Application Load Balancer with security group-based access control
 
 ## Prerequisites
 
@@ -22,7 +25,7 @@ This guide provides step-by-step instructions to deploy the complete Jenkins CI/
    aws --version
    ```
 
-2. **kubectl** (v1.28 or later)
+2. **kubectl** (v1.32 or later)
    ```bash
    kubectl version --client
    ```
@@ -43,6 +46,11 @@ This guide provides step-by-step instructions to deploy the complete Jenkins CI/
    npm install -g typescript
    ```
 
+6. **Helm** (v3.x) - For ALB Controller installation
+   ```bash
+   helm version
+   ```
+
 ### AWS Account Setup
 
 1. **AWS Account** with appropriate permissions
@@ -55,22 +63,49 @@ This guide provides step-by-step instructions to deploy the complete Jenkins CI/
 
 ## Deployment Steps
 
-### Phase 1: Deploy CDK Infrastructure (30-45 minutes)
+### Phase 1: Configure IP Whitelist
 
-#### Step 1.1: Install Dependencies
+Before deploying, configure the IP addresses that can access Jenkins:
+
+#### Step 1.1: Create IP Whitelist Configuration
+
+```bash
+# Copy the sample configuration
+cp security/alb-ip-whitelist.sample.json security/alb-ip-whitelist.json
+
+# Edit the configuration with your IP addresses
+# Replace with your actual home/office IP
+```
+
+**Configuration Format**:
+```json
+{
+  "homeIp": "YOUR.HOME.IP/32",
+  "additionalIps": [
+    "OFFICE.IP/32",
+    "VPN.IP/32"
+  ]
+}
+```
+
+**Note**: The `security/alb-ip-whitelist.json` file is gitignored to prevent committing sensitive IP addresses.
+
+### Phase 2: Deploy CDK Infrastructure (30-45 minutes)
+
+#### Step 2.1: Install Dependencies
 
 ```bash
 cd eks_jenkins
 npm install
 ```
 
-#### Step 1.2: Build the CDK Project
+#### Step 2.2: Build the CDK Project
 
 ```bash
 npm run build
 ```
 
-#### Step 1.3: Bootstrap CDK (First Time Only)
+#### Step 2.3: Bootstrap CDK (First Time Only)
 
 ```bash
 # Get your AWS account ID
@@ -80,46 +115,70 @@ AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 cdk bootstrap aws://${AWS_ACCOUNT_ID}/us-west-2
 ```
 
-#### Step 1.4: Review the CloudFormation Template
+#### Step 2.4: Deploy All Stacks
 
 ```bash
-# Synthesize the CloudFormation template
-cdk synth
+# Deploy all infrastructure stacks in order
+./scripts/deploy-infrastructure.sh
 
-# Review the generated template
-cdk synth > template.yaml
-```
-
-#### Step 1.5: Deploy the CDK Stack
-
-```bash
-# Deploy the infrastructure
-cdk deploy
-
-# Confirm the deployment when prompted
-# This will create:
-# - VPC with private subnets, NAT Gateways, VPC endpoints
-# - EKS cluster with Kubernetes 1.28
-# - EFS file system with mount targets and backup
-# - S3 bucket for artifacts
-# - IAM roles for IRSA
-# - Node groups (controller on-demand, agent spot)
+# Or deploy manually:
+cdk deploy JenkinsNetworkStack --require-approval never
+cdk deploy JenkinsStorageStack --require-approval never
+cdk deploy TransitGatewayStack --require-approval never
+cdk deploy JenkinsAlbStack --require-approval never
+cdk deploy JenkinsEksClusterStack --require-approval never
+cdk deploy JenkinsEksNodeGroupsStack --require-approval never
+cdk deploy JenkinsApplicationStack --require-approval never
 ```
 
 **Expected Duration**: 30-45 minutes
 
 **What Gets Created**:
-- VPC (10.0.0.0/16) with 2 private subnets, 2 public subnets
-- 2 NAT Gateways (one per AZ)
-- 6 VPC endpoints (S3, ECR API, ECR Docker, EC2, STS, CloudWatch Logs)
-- EKS cluster with private endpoint access
-- EFS file system with encryption and lifecycle management
-- S3 bucket with versioning and lifecycle policy
-- 4 IAM roles (EKS cluster, Jenkins controller, Cluster Autoscaler, EFS CSI Driver)
-- OIDC provider for IRSA
-- 2 node groups (controller: 1-2 on-demand, agent: 2-10 spot)
 
-#### Step 1.6: Configure kubectl
+1. **JenkinsNetworkStack**:
+   - VPC (10.0.0.0/16) with 2 private subnets, 2 public subnets
+   - 2 NAT Gateways (one per AZ)
+   - VPC endpoints in BOTH AZs (STS, EC2, ECR API, ECR DKR)
+
+2. **JenkinsStorageStack**:
+   - EFS file system with encryption and lifecycle management
+   - EFS security group allowing NFS traffic from cluster
+   - Mount targets in both AZs
+   - AWS Backup plan with 30-day retention
+
+3. **TransitGatewayStack**:
+   - Transit Gateway for inter-VPC connectivity
+   - Attachments to Jenkins and Nginx API VPCs
+
+4. **JenkinsAlbStack**:
+   - Security group for ALB with IP whitelist
+   - Ingress rules for HTTP/HTTPS from configured IPs
+   - AWS IP ranges for service access
+
+5. **JenkinsEksClusterStack**:
+   - EKS cluster with Kubernetes 1.32
+   - OIDC provider for IRSA
+   - Cluster logging enabled (all types)
+   - CoreDNS addon with tolerations for tainted nodes
+   - Private and public endpoint access
+
+6. **JenkinsEksNodeGroupsStack**:
+   - Controller node group: 1-2 on-demand t3.medium instances
+   - Agent node group: 0-10 spot t3.large instances
+   - Launch template with nfs-utils installation
+   - Node taints and labels for workload separation
+
+7. **JenkinsApplicationStack**:
+   - ALB Controller service account with IRSA
+   - Jenkins service account with IRSA
+   - S3 artifacts bucket with versioning and lifecycle policy
+   - GitHub webhook secret in Secrets Manager
+   - CloudWatch alarms (5 alarms)
+   - Security group rule: ALB → Cluster on port 8080
+   - Static PV/StorageClass for EFS (native NFS)
+   - All Jenkins Kubernetes manifests
+
+#### Step 2.5: Configure kubectl
 
 ```bash
 # Update kubeconfig to access the EKS cluster
@@ -128,117 +187,83 @@ aws eks update-kubeconfig --name jenkins-eks-cluster --region us-west-2
 # Verify cluster access
 kubectl get nodes
 
-# Expected output: 3 nodes (1 controller, 2 agent)
+# Expected output: 2-3 nodes (controller and agent nodes)
 ```
 
-### Phase 2: Deploy EFS CSI Driver (5-10 minutes)
+### Phase 3: Install ALB Controller (5-10 minutes)
 
-#### Step 2.1: Navigate to EFS CSI Driver Directory
+The ALB Controller service account is created by CDK, but the controller itself must be installed via Helm:
+
+#### Step 3.1: Add Helm Repository
 
 ```bash
-cd k8s/efs-csi-driver
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
 ```
 
-#### Step 2.2: Deploy EFS CSI Driver
+#### Step 3.2: Install ALB Controller
 
 ```bash
-# Make the script executable
-chmod +x deploy.sh
+# Get the cluster name and region
+CLUSTER_NAME=jenkins-eks-cluster
+AWS_REGION=us-west-2
 
-# Run the deployment script
-./deploy.sh
+# Get the VPC ID
+VPC_ID=$(aws eks describe-cluster --name $CLUSTER_NAME --region $AWS_REGION --query "cluster.resourcesVpcConfig.vpcId" --output text)
+
+# Install ALB Controller
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=$CLUSTER_NAME \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=$AWS_REGION \
+  --set vpcId=$VPC_ID
 ```
 
-**What the Script Does**:
-1. Checks prerequisites (kubectl, AWS CLI)
-2. Retrieves EFS CSI Driver IAM role ARN from CloudFormation
-3. Updates service account with IRSA annotation
-4. Deploys EFS CSI Driver components
-5. Waits for components to be ready
-6. Verifies deployment
-
-#### Step 2.3: Verify EFS CSI Driver
+#### Step 3.3: Verify ALB Controller
 
 ```bash
-# Check controller deployment
-kubectl get deployment efs-csi-controller -n kube-system
+# Check deployment
+kubectl get deployment -n kube-system aws-load-balancer-controller
 
-# Check node DaemonSet
-kubectl get daemonset efs-csi-node -n kube-system
+# Check logs
+kubectl logs -n kube-system deployment/aws-load-balancer-controller
 
-# Check storage class
-kubectl get storageclass efs-sc
-
-# All should show as ready/available
+# Wait for ALB to be provisioned (2-5 minutes)
+kubectl get ingress -n jenkins -w
 ```
 
-### Phase 3: Deploy Jenkins Controller (10-15 minutes)
+### Phase 4: Access Jenkins (2-3 minutes)
 
-#### Step 3.1: Navigate to Jenkins Directory
-
-```bash
-cd ../jenkins
-```
-
-#### Step 3.2: Deploy Jenkins Controller
+#### Step 4.1: Get ALB URL
 
 ```bash
-# Make the script executable
-chmod +x deploy.sh
+# Get the ALB DNS name
+kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 
-# Run the deployment script
-./deploy.sh
-```
-
-**What the Script Does**:
-1. Checks prerequisites
-2. Retrieves Jenkins controller IAM role ARN from CloudFormation
-3. Updates service account with IRSA annotation
-4. Verifies EFS CSI Driver storage class exists
-5. Checks for controller nodes
-6. Deploys Jenkins controller manifests
-7. Waits for Jenkins pod to be ready
-8. Displays access instructions
-
-#### Step 3.3: Verify Jenkins Deployment
-
-```bash
-# Check all resources in jenkins namespace
-kubectl get all -n jenkins
-
-# Expected output:
-# - StatefulSet: jenkins-controller (1/1 ready)
-# - Pod: jenkins-controller-0 (Running)
-# - Service: jenkins (ClusterIP)
-# - PVC: jenkins-home (Bound)
-
-# Check pod logs
-kubectl logs -n jenkins -l app=jenkins-controller
-```
-
-### Phase 4: Access Jenkins (5 minutes)
-
-#### Step 4.1: Port Forward to Jenkins
-
-```bash
-# Forward port 8080 to your local machine
-kubectl port-forward -n jenkins svc/jenkins 8080:8080
+# Or use AWS CLI
+aws elbv2 describe-load-balancers --region us-west-2 \
+  --query 'LoadBalancers[?LoadBalancerName==`jenkins-alb`].DNSName' \
+  --output text
 ```
 
 #### Step 4.2: Get Initial Admin Password
 
 ```bash
 # Get the initial admin password
-kubectl exec -n jenkins -it $(kubectl get pods -n jenkins -l app=jenkins-controller -o jsonpath='{.items[0].metadata.name}') -- cat /var/jenkins_home/secrets/initialAdminPassword
+kubectl exec -n jenkins jenkins-controller-0 -- cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
 #### Step 4.3: Access Jenkins UI
 
-1. Open browser to: http://localhost:8080
+1. Open browser to: http://<ALB-DNS-NAME>
 2. Enter the initial admin password
 3. Install suggested plugins
 4. Create admin user
 5. Configure Jenkins URL
+
+**Note**: Jenkins is only accessible from IPs configured in `security/alb-ip-whitelist.json`
 
 ### Phase 5: Configure Jenkins (15-20 minutes)
 
@@ -294,31 +319,35 @@ Navigate to **Manage Jenkins** > **Manage Plugins** > **Available** and install:
 - [ ] VPC created with correct CIDR (10.0.0.0/16)
 - [ ] 2 private subnets in different AZs
 - [ ] 2 NAT Gateways (one per AZ)
-- [ ] 6 VPC endpoints created
-- [ ] EKS cluster running with Kubernetes 1.28+
+- [ ] VPC endpoints deployed in BOTH AZs
+- [ ] EKS cluster running with Kubernetes 1.32
 - [ ] EFS file system created and accessible
 - [ ] S3 bucket created with versioning enabled
-- [ ] 4 IAM roles created with correct permissions
+- [ ] IAM roles created with IRSA
 - [ ] OIDC provider configured
-- [ ] Controller node group: 1 on-demand instance
-- [ ] Agent node group: 2 spot instances
+- [ ] Controller node group: 1-2 on-demand instances
+- [ ] Agent node group: 0-10 spot instances
+- [ ] ALB security group created with IP whitelist
+- [ ] ALB provisioned and healthy
 
 ### Kubernetes Verification
 
 - [ ] kubectl can access the cluster
 - [ ] All nodes are in Ready state
-- [ ] EFS CSI Driver controller deployment: 2/2 ready
-- [ ] EFS CSI Driver node DaemonSet: pods on all nodes
-- [ ] Storage class 'efs-sc' exists
+- [ ] CoreDNS pods running on both nodes
+- [ ] Storage class 'jenkins-efs' exists
 - [ ] Jenkins namespace created
 - [ ] Jenkins service account has IRSA annotation
 - [ ] Jenkins PVC is Bound
 - [ ] Jenkins pod is Running
 - [ ] Jenkins service is accessible
+- [ ] ALB Controller deployment is running
+- [ ] Ingress resource created
+- [ ] ALB targets are healthy
 
 ### Jenkins Verification
 
-- [ ] Jenkins UI accessible via port-forward
+- [ ] Jenkins UI accessible via ALB URL
 - [ ] Initial admin password retrieved
 - [ ] Admin user created
 - [ ] Required plugins installed
@@ -366,23 +395,44 @@ pipeline {
 **Solution**: 
 - Verify IAM permissions
 - Check service quotas for EKS
-- Ensure region supports EKS 1.28
+- Ensure region supports EKS 1.32
 
-### EFS CSI Driver Issues
+### ALB Issues
 
-**Issue**: EFS CSI Driver pods not starting
+**Issue**: ALB not provisioned after 10 minutes
 
 **Solution**:
 ```bash
-# Check IAM role annotation
-kubectl describe sa efs-csi-controller-sa -n kube-system
+# Check ALB Controller logs
+kubectl logs -n kube-system deployment/aws-load-balancer-controller
 
-# Check pod logs
-kubectl logs -n kube-system deployment/efs-csi-controller -c efs-plugin
+# Check ingress events
+kubectl describe ingress jenkins -n jenkins
 
-# Verify EFS mount targets
-aws efs describe-mount-targets --file-system-id <fs-id>
+# Verify service account has correct IAM role
+kubectl describe sa aws-load-balancer-controller -n kube-system
 ```
+
+**Issue**: ALB targets unhealthy
+
+**Solution**:
+```bash
+# Check security group rules
+aws ec2 describe-security-groups --group-ids sg-067b7f83aa98c7dd3
+
+# Verify ALB can reach Jenkins pods on port 8080
+kubectl get pods -n jenkins -o wide
+
+# Check Jenkins pod logs
+kubectl logs -n jenkins jenkins-controller-0
+```
+
+**Issue**: Cannot access Jenkins (403 Forbidden)
+
+**Solution**:
+- Verify your IP is in `security/alb-ip-whitelist.json`
+- Redeploy JenkinsAlbStack: `cdk deploy JenkinsAlbStack --require-approval never`
+- Check ALB security group rules in AWS Console
 
 ### Jenkins Deployment Issues
 
@@ -394,7 +444,7 @@ aws efs describe-mount-targets --file-system-id <fs-id>
 kubectl get nodes -l workload-type=jenkins-controller
 
 # Check pod events
-kubectl describe pod -n jenkins -l app=jenkins-controller
+kubectl describe pod -n jenkins jenkins-controller-0
 
 # If no controller nodes, wait for node group to be created
 ```
@@ -404,13 +454,13 @@ kubectl describe pod -n jenkins -l app=jenkins-controller
 **Solution**:
 ```bash
 # Check storage class
-kubectl get storageclass efs-sc
+kubectl get storageclass jenkins-efs
 
 # Check PVC events
 kubectl describe pvc -n jenkins jenkins-home
 
-# Verify EFS CSI Driver is running
-kubectl get pods -n kube-system -l app=efs-csi-controller
+# Verify EFS mount targets
+aws efs describe-mount-targets --file-system-id fs-095eed9d5c8fcb1b9
 ```
 
 **Issue**: Jenkins pod CrashLoopBackOff
@@ -418,13 +468,21 @@ kubectl get pods -n kube-system -l app=efs-csi-controller
 **Solution**:
 ```bash
 # Check pod logs
-kubectl logs -n jenkins -l app=jenkins-controller
+kubectl logs -n jenkins jenkins-controller-0
 
 # Check EFS mount
-kubectl exec -n jenkins -it $(kubectl get pods -n jenkins -l app=jenkins-controller -o jsonpath='{.items[0].metadata.name}') -- df -h
+kubectl exec -n jenkins jenkins-controller-0 -- df -h
 
 # Verify EFS file system is accessible
+aws efs describe-file-systems --file-system-id fs-095eed9d5c8fcb1b9
 ```
+
+**Issue**: CoreDNS pods not scheduling
+
+**Solution**:
+- CoreDNS addon is configured with tolerations in CDK
+- Verify addon configuration: `aws eks describe-addon --cluster-name jenkins-eks-cluster --addon-name coredns`
+- If needed, update addon: `cdk deploy JenkinsEksClusterStack --require-approval never`
 
 ## Cost Optimization
 
@@ -432,15 +490,16 @@ kubectl exec -n jenkins -it $(kubectl get pods -n jenkins -l app=jenkins-control
 
 - **EKS Cluster**: ~$73/month (control plane)
 - **EC2 Instances**:
-  - Controller (t3.large on-demand): ~$60/month
-  - Agents (2x m5.large spot): ~$30/month (70% savings)
+  - Controller (t3.medium on-demand): ~$30/month
+  - Agents (2x t3.large spot): ~$25/month (70% savings)
 - **EFS**: ~$10/month (100GB, with IA)
 - **S3**: ~$2/month (100GB)
 - **NAT Gateways**: ~$65/month (2 gateways)
-- **VPC Endpoints**: ~$15/month (5 interface endpoints)
+- **VPC Endpoints**: ~$15/month (4 interface endpoints)
+- **ALB**: ~$20/month
 - **Data Transfer**: Variable
 
-**Total**: ~$255/month (baseline)
+**Total**: ~$240/month (baseline)
 
 ### Cost Reduction Tips
 
@@ -471,6 +530,18 @@ kubectl exec -n jenkins -it $(kubectl get pods -n jenkins -l app=jenkins-control
 - Review and rotate credentials
 - Check for Kubernetes updates
 
+### Updating IP Whitelist
+
+To add or remove IP addresses:
+
+1. Edit `security/alb-ip-whitelist.json`
+2. Rebuild and deploy:
+   ```bash
+   npm run build
+   cdk deploy JenkinsAlbStack --require-approval never
+   ```
+3. Security group updates automatically (no need to redeploy ApplicationStack)
+
 ### Backup and Recovery
 
 **Jenkins Configuration Backup**:
@@ -483,18 +554,19 @@ kubectl exec -n jenkins -it $(kubectl get pods -n jenkins -l app=jenkins-control
 3. Infrastructure as Code (CDK) in Git
 
 **Recovery Procedure**:
-1. Deploy CDK stack to new region/account
+1. Deploy CDK stacks to new region/account
 2. Restore EFS from backup
-3. Deploy Kubernetes manifests
+3. Install ALB Controller via Helm
 4. Verify Jenkins configuration
 
 ## Security Best Practices
 
 1. **Network Security**:
-   - ✅ Private EKS endpoint only
+   - ✅ Private EKS endpoint access
    - ✅ Private subnets for workloads
-   - ✅ VPC endpoints for AWS services
+   - ✅ VPC endpoints for AWS services (in both AZs)
    - ✅ Security groups restrict traffic
+   - ✅ ALB with IP whitelist
 
 2. **IAM Security**:
    - ✅ IRSA for pod-level permissions
@@ -509,120 +581,64 @@ kubectl exec -n jenkins -it $(kubectl get pods -n jenkins -l app=jenkins-control
 4. **Access Control**:
    - ✅ Kubernetes RBAC
    - ✅ Jenkins authentication
-   - ✅ VPN for production access
+   - ✅ IP-based access control via ALB
 
-### Phase 6: Deploy Cluster Autoscaler (5-10 minutes)
+## CDK Deployment Philosophy
 
-#### Step 6.1: Navigate to Cluster Autoscaler Directory
+This project follows strict infrastructure-as-code principles:
 
-```bash
-cd ../cluster-autoscaler
-```
+- ✅ Everything managed through CDK code
+- ✅ No manual kubectl commands required
+- ✅ No placeholder replacements needed
+- ✅ All security group rules in CDK
+- ✅ Service accounts created programmatically with IRSA
+- ✅ IP whitelist managed via configuration file
+- ✅ VPC endpoints deployed in both AZs
+- ✅ CoreDNS addon managed by CDK
 
-#### Step 6.2: Deploy Cluster Autoscaler
+**Key Principle**: Write CDK code, run `cdk deploy`, everything works.
 
-```bash
-# Make the script executable
-chmod +x deploy.sh
-
-# Get required environment variables
-export CLUSTER_NAME=jenkins-eks-cluster
-export CLUSTER_AUTOSCALER_ROLE_ARN=$(aws cloudformation describe-stacks \
-  --stack-name JenkinsEksStack \
-  --query 'Stacks[0].Outputs[?OutputKey==`ClusterAutoscalerRoleArn`].OutputValue' \
-  --output text)
-
-# Run the deployment script
-CLUSTER_NAME=$CLUSTER_NAME CLUSTER_AUTOSCALER_ROLE_ARN=$CLUSTER_AUTOSCALER_ROLE_ARN ./deploy.sh
-```
-
-#### Step 6.3: Verify Cluster Autoscaler
+## Quick Reference Commands
 
 ```bash
-# Check deployment
-kubectl get deployment cluster-autoscaler -n kube-system
+# Update kubeconfig
+aws eks update-kubeconfig --name jenkins-eks-cluster --region us-west-2
 
-# Check logs
-kubectl logs -n kube-system -l app=cluster-autoscaler --tail=50
+# Check Jenkins pod
+kubectl get pods -n jenkins
+
+# Check ALB ingress
+kubectl get ingress -n jenkins
+
+# Check nodes
+kubectl get nodes
+
+# Deploy all infrastructure
+./scripts/deploy-infrastructure.sh
+
+# Deploy only application stack (fast iteration - 3-5 min)
+npm run build && cdk deploy JenkinsApplicationStack --require-approval never
+
+# Get Jenkins URL
+kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Get initial admin password
+kubectl exec -n jenkins jenkins-controller-0 -- cat /var/jenkins_home/secrets/initialAdminPassword
+
+# Check ALB Controller
+kubectl get deployment -n kube-system aws-load-balancer-controller
+
+# Check ALB targets
+aws elbv2 describe-target-health --target-group-arn <target-group-arn>
 ```
-
-### Phase 7: Deploy Node Termination Handler (5 minutes)
-
-#### Step 7.1: Navigate to Node Termination Handler Directory
-
-```bash
-cd ../node-termination-handler
-```
-
-#### Step 7.2: Deploy Node Termination Handler
-
-```bash
-# Make the script executable
-chmod +x deploy.sh
-
-# Run the deployment script
-./deploy.sh
-```
-
-#### Step 7.3: Verify Node Termination Handler
-
-```bash
-# Check DaemonSet
-kubectl get daemonset aws-node-termination-handler -n kube-system
-
-# Check logs
-kubectl logs -n kube-system -l app=aws-node-termination-handler --tail=50
-```
-
-### Phase 8: Deploy CloudWatch Container Insights (5-10 minutes)
-
-#### Step 8.1: Navigate to Monitoring Directory
-
-```bash
-cd ../monitoring
-```
-
-#### Step 8.2: Deploy CloudWatch Container Insights
-
-```bash
-# Make the script executable
-chmod +x deploy.sh
-
-# Set environment variables
-export CLUSTER_NAME=jenkins-eks-cluster
-export AWS_REGION=us-west-2
-
-# Run the deployment script
-CLUSTER_NAME=$CLUSTER_NAME AWS_REGION=$AWS_REGION ./deploy.sh
-```
-
-#### Step 8.3: Verify CloudWatch Container Insights
-
-```bash
-# Check DaemonSets
-kubectl get daemonset -n amazon-cloudwatch
-
-# Check logs
-kubectl logs -n amazon-cloudwatch -l name=cloudwatch-agent --tail=50
-kubectl logs -n amazon-cloudwatch -l k8s-app=fluent-bit --tail=50
-```
-
-#### Step 8.4: View Metrics in CloudWatch Console
-
-1. Open CloudWatch Console: https://console.aws.amazon.com/cloudwatch/
-2. Navigate to Container Insights
-3. Select your cluster: jenkins-eks-cluster
-4. View performance metrics and logs
 
 ## Next Steps
 
 1. **Configure Jenkins Pipelines**: Create CI/CD pipelines for your applications
-2. **Configure Agent Pod Template**: Deploy the Jenkins agent pod template ConfigMap
-3. **Configure Backups**: Verify AWS Backup is running
-4. **Set Up Alerts**: Subscribe to SNS topic for CloudWatch alarms
-5. **Run Property Tests**: Execute property-based tests to verify correctness
-6. **Documentation**: Document your Jenkins pipelines and workflows
-7. **Training**: Train team on Jenkins and Kubernetes
+2. **Set Up GitHub Webhooks**: Configure webhooks for automatic builds
+3. **Configure Monitoring**: Subscribe to SNS topic for CloudWatch alarms
+4. **Documentation**: Document your Jenkins pipelines and workflows
+5. **Training**: Train team on Jenkins and Kubernetes
 
 ## Support and Resources
 
@@ -630,14 +646,18 @@ kubectl logs -n amazon-cloudwatch -l k8s-app=fluent-bit --tail=50
 - **Jenkins Documentation**: https://www.jenkins.io/doc/
 - **Kubernetes Documentation**: https://kubernetes.io/docs/
 - **AWS CDK Documentation**: https://docs.aws.amazon.com/cdk/
+- **AWS Load Balancer Controller**: https://kubernetes-sigs.github.io/aws-load-balancer-controller/
 
 ## Conclusion
 
 You now have a fully functional Jenkins CI/CD platform running on Amazon EKS with:
 - High availability (on-demand controller instances)
 - Cost optimization (spot instance agents)
-- Persistent storage (EFS)
+- Persistent storage (EFS with native NFS)
 - Secure AWS integration (IRSA)
 - Scalable infrastructure (Kubernetes)
+- Secure access (ALB with IP whitelist)
+- Multi-AZ deployment (VPC endpoints in both AZs)
+- Fully automated deployment (CDK)
 
 The platform is ready for production use!

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-plugins
+  namespace: jenkins
+  labels:
+    app: jenkins
+data:
+  plugins.txt: |
+    # Core plugins
+    kubernetes:4253.v7700d91739e5
+    workflow-aggregator:600.vb_57cdd26fdd7
+    git:5.4.1
+    configuration-as-code:1850.va_a_8c31d3158b_
+    
+    # Job DSL plugin for creating jobs from code
+    job-dsl:1.87
+    
+    # GitHub integration
+    github:1.38.0
+    github-branch-source:1797.v86fdb_4d57d43
+    
+    # Pipeline plugins
+    workflow-job:1436.vfa_244484591f
+    workflow-cps:3900.v84846a_f3c21b_
+    pipeline-stage-view:2.34
+    
+    # AWS plugins
+    aws-credentials:232.v6ad1b_4c1e9b_4
+    aws-java-sdk-minimal:1.12.772-430.v6f9c23a_6e0e9
+    
+    # Utility plugins
+    credentials-binding:681.vf91669a_32e45
+    timestamper:1.27
+    ws-cleanup:0.46
+    ansicolor:1.0.4
+    
+    # Configuration reload plugin
+    configuration-as-code-support:1.19

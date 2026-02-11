@@ -5,14 +5,19 @@ metadata:
   name: nginx-api-cluster
   region: us-west-2
 
+# IMPORTANT: Replace VPC_ID and SUBNET_IDs with your actual values before using
+# To get these values, run:
+# VPC_ID: aws cloudformation describe-stacks --stack-name NginxApiNetworkStack --query "Stacks[0].Outputs[?ExportName=='NginxApiNetworkVpcId'].OutputValue" --output text --region us-west-2
+# SUBNET_IDs: aws ec2 describe-subnets --filters "Name=vpc-id,Values=VPC_ID" "Name=tag:aws-cdk:subnet-type,Values=Private" --query "Subnets[*].[AvailabilityZone,SubnetId]" --output table --region us-west-2
+
 vpc:
-  id: vpc-034b59e141c9a0afa
+  id: VPC_ID
   subnets:
     private:
       us-west-2a:
-        id: subnet-0752179b36efe3bdd
+        id: SUBNET_ID_AZ_A
       us-west-2b:
-        id: subnet-04cd45d65ad61253d
+        id: SUBNET_ID_AZ_B
 
 managedNodeGroups:
   - name: karpenter-bootstrap

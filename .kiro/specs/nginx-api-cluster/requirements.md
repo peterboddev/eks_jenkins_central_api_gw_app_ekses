@@ -23,30 +23,35 @@ This document specifies the requirements for a separate EKS cluster that runs a 
 
 ## Requirements
 
-### Requirement 1: VPC Infrastructure
+### Requirement 1: VPC Infrastructure (COMPLETED - NginxApiNetworkStack)
 
 **User Story:** As a platform engineer, I want a dedicated VPC for the API cluster, so that I can isolate the API workload and replicate customer multi-VPC architectures.
 
+**Status:** ✅ COMPLETED - VPC infrastructure is provisioned by the separate NginxApiNetworkStack
+
 #### Acceptance Criteria
 
-1. THE CDK_Stack SHALL create API_VPC with CIDR block 10.1.0.0/16
-2. WHEN creating subnets, THE CDK_Stack SHALL provision public subnets across 2 availability zones
-3. WHEN creating subnets, THE CDK_Stack SHALL provision private subnets across 2 availability zones
-4. THE CDK_Stack SHALL create an Internet Gateway for public subnet internet access
-5. THE CDK_Stack SHALL create NAT Gateways in public subnets for private subnet internet access
-6. THE CDK_Stack SHALL configure route tables for public and private subnet traffic routing
+1. ✅ THE NginxApiNetworkStack HAS CREATED API_VPC with CIDR block 10.1.0.0/16
+2. ✅ THE NginxApiNetworkStack HAS PROVISIONED public subnets across 2 availability zones
+3. ✅ THE NginxApiNetworkStack HAS PROVISIONED private subnets across 2 availability zones
+4. ✅ THE NginxApiNetworkStack HAS CREATED an Internet Gateway for public subnet internet access
+5. ✅ THE NginxApiNetworkStack HAS CREATED a NAT Gateway for private subnet internet access
+6. ✅ THE NginxApiNetworkStack HAS CONFIGURED route tables for public and private subnet traffic routing
+7. ✅ THE NginxApiNetworkStack HAS TAGGED subnets for EKS and Karpenter discovery
 
 ### Requirement 2: EKS Cluster Provisioning
 
 **User Story:** As a platform engineer, I want an EKS cluster in the API VPC, so that I can run containerized API workloads with Kubernetes orchestration.
 
+**Dependencies:** Requires NginxApiNetworkStack to be deployed first
+
 #### Acceptance Criteria
 
-1. THE CDK_Stack SHALL create API_Cluster in API_VPC private subnets
-2. WHEN creating API_Cluster, THE CDK_Stack SHALL configure it with a managed node group
-3. THE CDK_Stack SHALL configure API_Cluster with appropriate IAM roles for cluster and node operations
-4. THE CDK_Stack SHALL enable API_Cluster control plane logging
-5. THE CDK_Stack SHALL output the kubeconfig for API_Cluster access
+1. THE NginxApiClusterStack SHALL create API_Cluster in API_VPC private subnets (imported from NginxApiNetworkStack)
+2. WHEN creating API_Cluster, THE NginxApiClusterStack SHALL use Karpenter for dynamic node provisioning (no managed node groups)
+3. THE NginxApiClusterStack SHALL configure API_Cluster with appropriate IAM roles for cluster and Karpenter node operations
+4. THE NginxApiClusterStack SHALL enable API_Cluster control plane logging
+5. THE NginxApiClusterStack SHALL output the kubeconfig for API_Cluster access
 6. THE API_Cluster SHALL be completely separate from Jenkins_Cluster with no shared resources
 
 ### Requirement 3: AWS Load Balancer Controller
@@ -119,18 +124,20 @@ This document specifies the requirements for a separate EKS cluster that runs a 
 7. THE API_Gateway SHALL return responses from API_Application to clients
 8. THE CDK_Stack SHALL output the API_Gateway public URL
 
-### Requirement 8: Transit Gateway Connectivity
+### Requirement 8: Transit Gateway Connectivity (COMPLETED - TransitGatewayStack)
 
 **User Story:** As a DevOps engineer, I want Transit Gateway connectivity between VPCs, so that Jenkins can deploy applications to the API cluster using kubectl and helm commands across VPCs.
 
+**Status:** ✅ COMPLETED - Transit Gateway infrastructure is provisioned by the separate TransitGatewayStack
+
 #### Acceptance Criteria
 
-1. THE CDK_Stack SHALL create Transit_Gateway (or use existing if available)
-2. THE CDK_Stack SHALL attach API_VPC to Transit_Gateway
-3. THE CDK_Stack SHALL attach Jenkins_VPC to Transit_Gateway
-4. THE CDK_Stack SHALL configure route tables in API_VPC to route Jenkins_VPC CIDR (10.0.0.0/16) traffic through Transit_Gateway
-5. THE CDK_Stack SHALL configure route tables in Jenkins_VPC to route API_VPC CIDR (10.1.0.0/16) traffic through Transit_Gateway
-6. THE CDK_Stack SHALL configure security groups to allow Kubernetes API traffic (port 443) from Jenkins_VPC to API_Cluster control plane
+1. ✅ THE TransitGatewayStack HAS CREATED Transit_Gateway
+2. ✅ THE TransitGatewayStack HAS ATTACHED API_VPC to Transit_Gateway
+3. ✅ THE TransitGatewayStack HAS ATTACHED Jenkins_VPC to Transit_Gateway
+4. ✅ THE TransitGatewayStack HAS CONFIGURED route tables in API_VPC to route Jenkins_VPC CIDR (10.0.0.0/16) traffic through Transit_Gateway
+5. ✅ THE TransitGatewayStack HAS CONFIGURED route tables in Jenkins_VPC to route API_VPC CIDR (10.1.0.0/16) traffic through Transit_Gateway
+6. THE NginxApiClusterStack SHALL configure security groups to allow Kubernetes API traffic (port 443) from Jenkins_VPC to API_Cluster control plane
 7. WHEN Transit_Gateway is configured, Jenkins pods SHALL be able to execute kubectl and helm commands against API_Cluster using its kubeconfig
 
 ### Requirement 9: Helm-Based Application Deployment
@@ -151,12 +158,14 @@ This document specifies the requirements for a separate EKS cluster that runs a 
 
 #### Acceptance Criteria
 
-1. THE CDK_Stack SHALL be a separate stack from the Jenkins cluster stack
-2. THE API_Cluster SHALL have its own kubeconfig separate from Jenkins_Cluster
-3. THE API_Application SHALL have separate Helm values from Jenkins applications
-4. THE CDK_Stack SHALL not share IAM roles, security groups, or subnets with Jenkins_Cluster
-5. WHEN API_Cluster is destroyed, Jenkins_Cluster SHALL remain unaffected
-6. WHEN Jenkins_Cluster is destroyed, API_Cluster SHALL remain unaffected (except deployment capability)
+1. ✅ THE NginxApiClusterStack IS a separate stack from the Jenkins cluster stacks
+2. ✅ THE NginxApiNetworkStack IS a separate stack providing dedicated VPC infrastructure
+3. ✅ THE TransitGatewayStack IS a separate stack managing inter-VPC connectivity
+4. THE API_Cluster SHALL have its own kubeconfig separate from Jenkins_Cluster
+5. THE API_Application SHALL have separate Helm values from Jenkins applications
+6. THE NginxApiClusterStack SHALL not share IAM roles, security groups, or subnets with Jenkins stacks (except Transit Gateway routes)
+7. WHEN API_Cluster is destroyed, Jenkins_Cluster SHALL remain unaffected
+8. WHEN Jenkins_Cluster is destroyed, API_Cluster SHALL remain unaffected (except deployment capability via Transit Gateway)
 
 ### Requirement 11: Security Configuration
 

@@ -1,0 +1,36 @@
+{
+  "version": "48.0.0",
+  "files": {
+    "7fa1e366ee8a9ded01fc355f704cff92bfd179574e6f9cfee800a3541df1b200": {
+      "displayName": "NginxApiNetworkStack/Custom::VpcRestrictDefaultSGCustomResourceProvider Code",
+      "source": {
+        "path": "asset.7fa1e366ee8a9ded01fc355f704cff92bfd179574e6f9cfee800a3541df1b200",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "450683699755-us-west-2-15784aa8": {
+          "bucketName": "cdk-hnb659fds-assets-450683699755-us-west-2",
+          "objectKey": "7fa1e366ee8a9ded01fc355f704cff92bfd179574e6f9cfee800a3541df1b200.zip",
+          "region": "us-west-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::450683699755:role/cdk-hnb659fds-file-publishing-role-450683699755-us-west-2"
+        }
+      }
+    },
+    "d1a5b58566db6e1fcdb5ef5810d4420a3c3cfe7bd111d3498f78c593e91de81e": {
+      "displayName": "NginxApiNetworkStack Template",
+      "source": {
+        "path": "NginxApiNetworkStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "450683699755-us-west-2-8634d078": {
+          "bucketName": "cdk-hnb659fds-assets-450683699755-us-west-2",
+          "objectKey": "d1a5b58566db6e1fcdb5ef5810d4420a3c3cfe7bd111d3498f78c593e91de81e.json",
+          "region": "us-west-2",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::450683699755:role/cdk-hnb659fds-file-publishing-role-450683699755-us-west-2"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}
