@@ -26,11 +26,6 @@ spec:
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
-  - name: aws-cli
-    image: amazon/aws-cli:latest
-    command:
-    - cat
-    tty: true
   volumes:
   - name: docker-sock
     emptyDir: {}
@@ -194,15 +189,14 @@ http {
         
         stage('ECR Login') {
             steps {
-                container('aws-cli') {
-                    echo 'Logging in to Amazon ECR...'
-                    sh """
-                        aws ecr get-login-password --region ${AWS_REGION} > /tmp/ecr-password
-                    """
-                }
                 container('docker') {
+                    echo 'Installing AWS CLI and logging in to Amazon ECR...'
                     sh """
-                        cat /tmp/ecr-password | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        # Install AWS CLI v2 in the docker container
+                        apk add --no-cache aws-cli
+                        
+                        # Get ECR login password and login to Docker
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                     """
                 }
             }
@@ -224,7 +218,7 @@ http {
         
         stage('Verify Image') {
             steps {
-                container('aws-cli') {
+                container('docker') {
                     echo 'Verifying image in ECR...'
                     sh """
                         aws ecr describe-images \\

@@ -111,6 +111,9 @@ spec:
             steps {
                 container('docker') {
                     sh '''
+                        # Install AWS CLI
+                        apk add --no-cache aws-cli
+                        
                         # Login to ECR
                         aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
                         
