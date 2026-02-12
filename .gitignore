@@ -1,5 +1,8 @@
 *.js
 !jest.config.js
+!nginx-api/**/*.js
+!jenkins-jobs/**/*.js
+!generate-infrastructure-from-openapi.js
 *.d.ts
 node_modules
 

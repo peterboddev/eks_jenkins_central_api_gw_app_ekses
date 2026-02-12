@@ -105,10 +105,25 @@ spec:
             steps {
                 container('docker') {
                     sh '''
+                        echo "Current directory: $(pwd)"
+                        echo "Listing workspace contents:"
+                        ls -la
+                        
+                        echo "Changing to nginx-api directory..."
                         cd nginx-api
+                        
+                        echo "Listing nginx-api contents:"
+                        ls -la
+                        
+                        echo "Building Docker image..."
                         docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        
+                        echo "Tagging images..."
                         docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
                         docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${IMAGE_NAME}:latest
+                        
+                        echo "Docker images:"
+                        docker images | grep ${IMAGE_NAME}
                     '''
                 }
             }
