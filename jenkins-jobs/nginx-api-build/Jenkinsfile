@@ -1,7 +1,7 @@
 pipeline {
     // nginx-api-build pipeline - automated deployment to nginx-api-cluster
     // Triggered by GitHub push events via webhook or SCM polling
-    // Fixed: service account, Node.js, and AWS CLI installation
+    // Fixed: service account, Node.js, AWS CLI installation, and alpine apk usage
     agent {
         kubernetes {
             yaml '''
