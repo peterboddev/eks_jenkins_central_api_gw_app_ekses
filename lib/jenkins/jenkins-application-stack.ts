@@ -423,6 +423,25 @@ export class JenkinsApplicationStack extends cdk.Stack {
           resources: ['*'],
         }),
         
+        // ECR operations (for Docker image push/pull)
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            'ecr:GetAuthorizationToken',
+            'ecr:BatchCheckLayerAvailability',
+            'ecr:GetDownloadUrlForLayer',
+            'ecr:BatchGetImage',
+            'ecr:PutImage',
+            'ecr:InitiateLayerUpload',
+            'ecr:UploadLayerPart',
+            'ecr:CompleteLayerUpload',
+            'ecr:DescribeRepositories',
+            'ecr:ListImages',
+            'ecr:DescribeImages',
+          ],
+          resources: ['*'],
+        }),
+        
         // Secrets Manager operations
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,

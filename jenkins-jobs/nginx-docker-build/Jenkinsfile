@@ -1,7 +1,7 @@
 pipeline {
     // nginx-docker-build pipeline - builds and pushes nginx demo image to ECR
     // Triggered by GitHub push events via webhook or SCM polling
-    // Webhook integration configured and ready - testing with open SG
+    // Webhook integration configured - testing ECR permissions
     agent {
         kubernetes {
             label 'docker-build'

@@ -34,6 +34,7 @@ export class JenkinsAlbStack extends cdk.Stack {
     
     const homeIpAddress = ipWhitelist.homeIp;
     const additionalIps: string[] = ipWhitelist.additionalIps || [];
+    const githubWebhookIps: string[] = ipWhitelist.githubWebhookIps || [];
 
     // Create security group for ALB
     this.albSecurityGroup = new ec2.SecurityGroup(this, 'JenkinsAlbSecurityGroup', {
@@ -72,6 +73,17 @@ export class JenkinsAlbStack extends cdk.Stack {
         ec2.Peer.ipv4(ip),
         ec2.Port.tcp(443),
         `Allow HTTPS from additional IP ${index + 1}`
+      );
+    });
+
+    // Allow HTTP from GitHub webhook IP ranges
+    // Source: https://api.github.com/meta (hooks field)
+    // Update security/alb-ip-whitelist.json to modify these IPs
+    githubWebhookIps.forEach((ip) => {
+      this.albSecurityGroup.addIngressRule(
+        ec2.Peer.ipv4(ip),
+        ec2.Port.tcp(80),
+        'GitHub Webhooks'
       );
     });
 

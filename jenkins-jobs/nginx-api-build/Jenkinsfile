@@ -1,7 +1,7 @@
 pipeline {
     // nginx-api-build pipeline - automated deployment to nginx-api-cluster
     // Triggered by GitHub push events via webhook or SCM polling
-    // Webhook integration configured and ready
+    // Testing ECR permissions after IAM policy update
     agent {
         kubernetes {
             yaml '''
