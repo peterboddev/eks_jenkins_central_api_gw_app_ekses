@@ -1,7 +1,7 @@
 pipeline {
     // nginx-api-build pipeline - automated deployment to nginx-api-cluster
     // Triggered by GitHub push events via webhook or SCM polling
-    // Testing Docker build stage - investigating build failure
+    // Fixed: service account, Node.js, and AWS CLI installation
     agent {
         kubernetes {
             yaml '''
