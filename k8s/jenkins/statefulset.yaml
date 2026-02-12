@@ -46,7 +46,7 @@ spec:
         - -c
         - |
           echo "Installing Jenkins plugins..."
-          jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt --verbose
+          jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt --plugin-download-directory /var/jenkins_home/plugins --verbose
           echo "Plugins installed successfully!"
         volumeMounts:
         - name: jenkins-home

@@ -1,280 +1,359 @@
 # Jenkins Jobs Setup Guide
 
-**Last Updated**: 2025-02-11
+**Last Updated**: 2026-02-12
 
 ## Overview
 
-This guide explains how to set up Jenkins jobs for the nginx-api-build and nginx-docker-build pipelines. The jobs are defined as code in the repository using Job DSL, but need initial setup in Jenkins.
+This guide explains how Jenkins jobs are automatically created and managed in this infrastructure. Following the deployment philosophy, **everything is automated through CDK and JCasC** - no manual job creation required.
 
 ## Current Status
 
 - ✅ Jenkins is running and accessible
-- ✅ Job DSL plugin is installed
-- ✅ JCasC configuration includes seed job definition
-- ❌ Jobs not visible yet (need GitHub credentials and seed job trigger)
+- ✅ Job DSL plugin installed automatically
+- ✅ Seed job created automatically via JCasC on Jenkins startup
+- ✅ No manual job creation required
+- ⏳ Waiting for GitHub push to trigger job creation
 
-## Option 1: Manual Job Creation (Quickest)
+## How It Works (Automated)
 
-### Step 1: Access Jenkins
+### 1. Seed Job Creation (Automatic)
 
-1. Open Jenkins at: http://jenkins-alb-1673255351.us-west-2.elb.amazonaws.com
-2. Log in with admin credentials
+The seed job is created automatically when Jenkins starts via Jenkins Configuration as Code (JCasC):
 
-### Step 2: Create GitHub Credentials (if using private repo)
+- **Configuration**: `k8s/jenkins/jcasc-main-configmap.yaml`
+- **Job DSL Script**: `jenkins-jobs/seed-job.groovy`
+- **Repository**: https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git (public, no credentials needed)
+- **Branch**: main
+- **SCM Polling**: Every 5 minutes (H/5 * * * *)
 
-1. Navigate to **Manage Jenkins** > **Manage Credentials**
-2. Click **(global)** domain
-3. Click **Add Credentials**
-4. Configure:
-   - **Kind**: Username with password
-   - **Scope**: Global
-   - **Username**: Your GitHub username
-   - **Password**: Your GitHub personal access token
-   - **ID**: `github-credentials`
-   - **Description**: GitHub credentials for repository access
-5. Click **Create**
+### 2. Job Creation Flow
 
-### Step 3: Create Seed Job Manually
-
-1. Click **New Item**
-2. Enter name: `seed-job`
-3. Select **Freestyle project**
-4. Click **OK**
-5. Configure:
-   - **Description**: Seed job that creates all other Jenkins jobs from Job DSL scripts
-   - **Source Code Management**: Git
-     - **Repository URL**: `https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git`
-     - **Credentials**: Select `github-credentials` (if private repo)
-     - **Branch**: `*/main`
-   - **Build Triggers**: 
-     - ☑ GitHub hook trigger for GITScm polling
-     - ☑ Poll SCM: `H/5 * * * *`
-   - **Build Steps**: Add build step > **Process Job DSLs**
-     - **Look on Filesystem**: ☑
-     - **DSL Scripts**: `jenkins-jobs/seed-job.groovy`
-     - **Action for removed jobs**: Delete
-     - **Action for removed views**: Delete
-6. Click **Save**
-
-### Step 4: Run Seed Job
-
-1. Click **Build Now** on the seed-job
-2. Wait for build to complete
-3. Check console output for job creation messages
-4. Refresh Jenkins dashboard - you should now see:
-   - `nginx-api-build` job
-   - `nginx-docker-build` job
-
-## Option 2: Use JCasC Seed Job (Automated)
-
-The seed job is already defined in JCasC configuration, but it needs GitHub credentials to work.
-
-### Step 1: Add GitHub Credentials via JCasC
-
-Edit `k8s/jenkins/jcasc-main-configmap.yaml` to add GitHub credentials:
-
-```yaml
-credentials:
-  system:
-    domainCredentials:
-      - credentials:
-          - usernamePassword:
-              scope: GLOBAL
-              id: "github-credentials"
-              username: "${GITHUB_USERNAME}"
-              password: "${GITHUB_TOKEN}"
-              description: "GitHub credentials for repository access"
-          - string:
-              scope: GLOBAL
-              id: "github-webhook-secret"
-              secret: "${GITHUB_WEBHOOK_SECRET}"
-              description: "GitHub webhook secret"
+```
+1. Jenkins starts
+   ↓
+2. JCasC creates seed job automatically
+   ↓
+3. SCM polling detects changes in repository
+   ↓
+4. Seed job runs Job DSL script
+   ↓
+5. nginx_api_build and nginx_docker_build jobs created
+   ↓
+6. Jobs ready to use
 ```
 
-### Step 2: Add Secrets to Kubernetes
+### 3. No Manual Steps Required
+
+Following the deployment philosophy:
+- ✅ Seed job created automatically via JCasC
+- ✅ No manual job creation in Jenkins UI
+- ✅ No kubectl commands needed
+- ✅ No placeholder replacements
+- ✅ Everything managed through code
+
+## Jobs Created by Seed Job
+
+### nginx_api_build
+- **Purpose**: Build and deploy nginx-api application to nginx-api-cluster
+- **Trigger**: GitHub push
+- **Source**: `jenkins-jobs/nginx-api-build/Jenkinsfile`
+- **Requirements**: 
+  - AWS credentials (via IRSA - automatic)
+  - kubectl access to nginx-api-cluster
+
+### nginx_docker_build
+- **Purpose**: Build nginx demo Docker image
+- **Trigger**: GitHub push
+- **Source**: `jenkins-jobs/nginx-docker-build/Jenkinsfile`
+- **Requirements**:
+  - AWS ECR access (via IRSA - automatic)
+
+## Current Setup Status
+
+### ✅ Completed
+1. Seed job created automatically via JCasC
+2. Job DSL script configured in repository
+3. SCM polling enabled (every 5 minutes)
+4. Public repository - no credentials needed
+
+### ⏳ Pending
+1. GitHub push with Job DSL fix (Code Defender approval required)
+2. Seed job will automatically detect changes and create jobs
+
+## Verification
+
+### Check Seed Job Exists
 
 ```bash
-# Create GitHub credentials secret
-kubectl create secret generic github-credentials -n jenkins \
-  --from-literal=username='your-github-username' \
-  --from-literal=token='your-github-token'
+# Via kubectl
+kubectl exec -n jenkins jenkins-controller-0 -- ls -la /var/jenkins_home/jobs/
 
-# Update StatefulSet to mount the secret
-# Add to env section in statefulset.yaml:
-- name: GITHUB_USERNAME
-  valueFrom:
-    secretKeyRef:
-      name: github-credentials
-      key: username
-- name: GITHUB_TOKEN
-  valueFrom:
-    secretKeyRef:
-      name: github-credentials
-      key: token
+# Expected output:
+drwxr-xr-x. 3 jenkins jenkins 6144 Feb 12 00:30 seed-job
 ```
 
-### Step 3: Redeploy Jenkins
+### Check Seed Job Configuration
 
 ```bash
-# Rebuild and deploy
-npm run build
-cdk deploy JenkinsApplicationStack --require-approval never
-
-# Wait for Jenkins to restart
-kubectl rollout status statefulset/jenkins-controller -n jenkins
+# View seed job config
+kubectl exec -n jenkins jenkins-controller-0 -- cat /var/jenkins_home/jobs/seed-job/config.xml
 ```
 
-### Step 4: Trigger Seed Job
+### Check Seed Job Logs
 
-The seed job should be created automatically by JCasC. Trigger it:
+```bash
+# View latest build log
+kubectl exec -n jenkins jenkins-controller-0 -- cat /var/jenkins_home/jobs/seed-job/builds/1/log
+```
+
+### After GitHub Push - Check Created Jobs
+
+```bash
+# List all jobs
+kubectl exec -n jenkins jenkins-controller-0 -- ls -la /var/jenkins_home/jobs/
+
+# Expected output after seed job runs:
+drwxr-xr-x. 3 jenkins jenkins 6144 Feb 12 00:30 nginx_api_build
+drwxr-xr-x. 3 jenkins jenkins 6144 Feb 12 00:30 nginx_docker_build
+drwxr-xr-x. 3 jenkins jenkins 6144 Feb 12 00:30 seed-job
+```
+
+## Accessing Jenkins
+
+### Via ALB (Recommended)
+
+```bash
+# Get ALB URL
+kubectl get ingress jenkins -n jenkins -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Output: jenkins-alb-652899647.us-west-2.elb.amazonaws.com
+```
+
+- **URL**: http://jenkins-alb-652899647.us-west-2.elb.amazonaws.com
+- **Username**: admin
+- **Password**: admin
+- **Access**: Restricted to IPs in `security/alb-ip-whitelist.json`
+
+### Via Port Forward (Alternative)
 
 ```bash
 # Port forward to Jenkins
 kubectl port-forward -n jenkins svc/jenkins 8080:8080
 
-# Trigger seed job via CLI (or use UI)
-# Install Jenkins CLI first, then:
-java -jar jenkins-cli.jar -s http://localhost:8080/ build seed-job
+# Access at: http://localhost:8080
 ```
 
-## Option 3: Create Jobs via Jenkins CLI
+## Triggering Seed Job Manually (Optional)
 
-If you have Jenkins CLI configured:
+If you want to trigger the seed job immediately instead of waiting for SCM polling:
+
+### Via Jenkins UI
+1. Open Jenkins at ALB URL
+2. Click on `seed-job`
+3. Click **Build Now**
+4. Wait for build to complete
+5. Refresh dashboard - nginx jobs should appear
+
+### Via Jenkins CLI (Advanced)
 
 ```bash
-# Create seed job from XML
-cat > seed-job.xml << 'EOF'
-<?xml version='1.1' encoding='UTF-8'?>
-<project>
-  <description>Seed job that creates all other Jenkins jobs</description>
-  <scm class="hudson.plugins.git.GitSCM">
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>*/main</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-  </scm>
-  <triggers>
-    <hudson.triggers.SCMTrigger>
-      <spec>H/5 * * * *</spec>
-    </hudson.triggers.SCMTrigger>
-  </triggers>
-  <builders>
-    <javaposse.jobdsl.plugin.ExecuteDslScripts>
-      <targets>jenkins-jobs/seed-job.groovy</targets>
-      <removedJobAction>DELETE</removedJobAction>
-      <removedViewAction>DELETE</removedViewAction>
-    </javaposse.jobdsl.plugin.ExecuteDslScripts>
-  </builders>
-</project>
-EOF
+# Port forward first
+kubectl port-forward -n jenkins svc/jenkins 8080:8080
 
-# Create job
-java -jar jenkins-cli.jar -s http://localhost:8080/ create-job seed-job < seed-job.xml
+# Download Jenkins CLI
+wget http://localhost:8080/jnlpJars/jenkins-cli.jar
 
 # Trigger build
-java -jar jenkins-cli.jar -s http://localhost:8080/ build seed-job
+java -jar jenkins-cli.jar -s http://localhost:8080/ -auth admin:admin build seed-job
 ```
 
-## Verification
+## Job DSL Script Details
 
-After setting up jobs, verify they exist:
+### Location
+`jenkins-jobs/seed-job.groovy`
 
-### Via UI
-1. Open Jenkins dashboard
-2. You should see:
-   - `seed-job`
-   - `nginx-api-build`
-   - `nginx-docker-build`
+### Job Naming Convention
+- Use underscores (not hyphens) in job names
+- Job DSL requires: letters, digits, underscores only
+- Example: `nginx_api_build` (not `nginx-api-build`)
 
-### Via CLI
+### Script Content
+
+```groovy
+pipelineJob('nginx_api_build') {
+    description('Build and deploy nginx-api application to nginx-api-cluster')
+    
+    properties {
+        githubProjectUrl('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses')
+    }
+    
+    triggers {
+        githubPush()
+    }
+    
+    definition {
+        cpsScm {
+            scm {
+                git {
+                    remote {
+                        url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
+                    }
+                    branches('*/main')
+                }
+            }
+            scriptPath('jenkins-jobs/nginx-api-build/Jenkinsfile')
+            lightweight(true)
+        }
+    }
+}
+
+pipelineJob('nginx_docker_build') {
+    description('Build nginx demo Docker image')
+    
+    triggers {
+        githubPush()
+    }
+    
+    definition {
+        cpsScm {
+            scm {
+                git {
+                    remote {
+                        url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
+                    }
+                    branches('*/main')
+                }
+            }
+            scriptPath('jenkins-jobs/nginx-docker-build/Jenkinsfile')
+            lightweight(true)
+        }
+    }
+}
+```
+
+## Updating Jobs
+
+To update job definitions:
+
+1. Edit `jenkins-jobs/seed-job.groovy` in your repository
+2. Commit and push changes to GitHub
+3. Wait for SCM polling (5 minutes) or trigger seed job manually
+4. Seed job will update existing jobs automatically
+
+## Troubleshooting
+
+### Seed Job Not Created
+
+**Check JCasC Configuration**:
 ```bash
-kubectl exec -n jenkins jenkins-controller-0 -- ls -la /var/jenkins_home/jobs/
+kubectl logs -n jenkins jenkins-controller-0 | grep "seed-job"
 ```
 
 Expected output:
 ```
-drwxr-xr-x. 3 jenkins jenkins 6144 Feb 11 19:30 nginx-api-build
-drwxr-xr-x. 3 jenkins jenkins 6144 Feb 11 19:30 nginx-docker-build
-drwxr-xr-x. 3 jenkins jenkins 6144 Feb 11 19:30 seed-job
+createOrUpdateConfig for seed-job
 ```
 
-## Job Descriptions
+**Solution**: JCasC creates the seed job automatically. If missing, check:
+- `k8s/jenkins/jcasc-main-configmap.yaml` has jobs section
+- Jenkins pod restarted after ConfigMap changes
 
-### seed-job
-- **Purpose**: Creates and updates all other Jenkins jobs from Job DSL scripts in Git
-- **Trigger**: GitHub push, SCM polling every 5 minutes
-- **Source**: `jenkins-jobs/seed-job.groovy`
+### Seed Job Fails with "invalid script name"
 
-### nginx-api-build
-- **Purpose**: Build and deploy nginx-api application to nginx-api-cluster
-- **Trigger**: GitHub push
-- **Source**: `jenkins-jobs/nginx-api-build/Jenkinsfile`
-- **Requirements**: 
-  - GitHub credentials
-  - AWS credentials (via IRSA)
-  - kubectl access to nginx-api-cluster
+**Cause**: Job names contain hyphens (not allowed by Job DSL)
 
-### nginx-docker-build
-- **Purpose**: Build nginx demo Docker image
-- **Trigger**: GitHub push
-- **Source**: `jenkins-jobs/nginx-docker-build/Jenkinsfile`
-- **Requirements**:
-  - GitHub credentials
-  - Docker registry credentials
-  - AWS ECR access (via IRSA)
-
-## Troubleshooting
-
-### Seed Job Fails with "Credentials not found"
-
-**Solution**: Create GitHub credentials in Jenkins:
-1. Manage Jenkins > Manage Credentials
-2. Add credentials with ID: `github-credentials`
+**Solution**: Use underscores in job names:
+- ✅ `nginx_api_build`
+- ❌ `nginx-api-build`
 
 ### Jobs Not Created After Seed Job Runs
 
-**Solution**: Check seed job console output:
+**Check Seed Job Console Output**:
 ```bash
-# Via UI: Click seed-job > Latest build > Console Output
-
-# Via CLI:
-kubectl exec -n jenkins jenkins-controller-0 -- cat /var/jenkins_home/jobs/seed-job/builds/lastSuccessfulBuild/log
+kubectl exec -n jenkins jenkins-controller-0 -- cat /var/jenkins_home/jobs/seed-job/builds/1/log
 ```
 
-### Job DSL Script Errors
+**Common Issues**:
+1. Job DSL syntax error - check groovy script
+2. Repository not accessible - verify URL
+3. Job naming error - use underscores only
 
-**Solution**: Validate Job DSL syntax:
-1. Navigate to seed-job configuration
-2. Click **Process Job DSLs** > **API Viewer**
-3. Test your DSL script
+### GitHub Push Blocked by Code Defender
 
-### GitHub Webhook Not Triggering Builds
+**Solution**: Approve repository first:
+```bash
+git-defender --request-repo --url https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git --reason 3
+```
 
-**Solution**: Configure webhook in GitHub:
+Then push:
+```bash
+git push origin main
+```
+
+### SCM Polling Not Working
+
+**Check Seed Job Configuration**:
+```bash
+kubectl exec -n jenkins jenkins-controller-0 -- cat /var/jenkins_home/jobs/seed-job/config.xml | grep -A 3 "SCMTrigger"
+```
+
+Expected output:
+```xml
+<hudson.triggers.SCMTrigger>
+    <spec>H/5 * * * *</spec>
+    <ignorePostCommitHooks>false</ignorePostCommitHooks>
+</hudson.triggers.SCMTrigger>
+```
+
+## GitHub Webhooks (Optional)
+
+For instant builds instead of polling:
+
+### Step 1: Get Webhook Secret
+
+```bash
+aws secretsmanager get-secret-value \
+  --secret-id jenkins/github-webhook-secret \
+  --region us-west-2 \
+  --query SecretString \
+  --output text | jq -r .secret
+```
+
+### Step 2: Configure in GitHub
+
 1. Go to repository settings > Webhooks
 2. Add webhook:
-   - **Payload URL**: `http://jenkins-alb-1673255351.us-west-2.elb.amazonaws.com/github-webhook/`
+   - **Payload URL**: `http://jenkins-alb-652899647.us-west-2.elb.amazonaws.com/github-webhook/`
    - **Content type**: application/json
-   - **Secret**: Use value from `jenkins/github-webhook-secret` in Secrets Manager
+   - **Secret**: Use value from Step 1
    - **Events**: Just the push event
+3. Click **Add webhook**
+
+## Deployment Philosophy Compliance
+
+This setup follows the deployment philosophy:
+
+- ✅ **No Manual Steps**: Seed job created automatically via JCasC
+- ✅ **No kubectl Commands**: Everything managed through CDK
+- ✅ **No Placeholders**: Repository URL and configuration in code
+- ✅ **Git Push Managed**: Jobs created automatically after push
+- ✅ **Repeatable**: Same setup in any environment
 
 ## Next Steps
 
-1. ✅ Create seed job (Option 1 recommended for quickest setup)
-2. ✅ Run seed job to create other jobs
-3. Configure GitHub webhooks for automatic builds
-4. Test pipeline execution
-5. Configure additional jobs as needed
+1. ⏳ Approve GitHub repository in Code Defender
+2. ⏳ Push Job DSL fix: `git push origin main`
+3. ⏳ Wait for SCM polling (5 min) or manually trigger seed job
+4. ⏳ Verify nginx_api_build and nginx_docker_build jobs are created
+5. Configure GitHub webhooks for instant builds (optional)
+6. Test pipeline execution
+7. Add more jobs to seed-job.groovy as needed
 
 ## Notes
 
-- The seed job approach follows Jenkins best practices for job-as-code
-- All job definitions are in Git, making them version-controlled
-- Changes to job definitions require running the seed job again
-- For public repositories, GitHub credentials are optional
+- Seed job is created automatically - no manual creation required
+- Public repository - no GitHub credentials needed
+- Job names must use underscores (not hyphens) for Job DSL compatibility
+- SCM polling runs every 5 minutes
+- All job definitions are version-controlled in Git
+- Changes to jobs require updating seed-job.groovy and pushing to GitHub

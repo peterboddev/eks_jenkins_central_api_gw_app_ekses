@@ -105,7 +105,7 @@ dnf install -y nfs-utils
     
     this.controllerNodeGroup = new cdk.aws_eks.CfnNodegroup(this, 'ControllerNodeGroup', {
       clusterName: props.cluster.clusterName,
-      nodegroupName: 'jenkins-controller-nodegroup',
+      nodegroupName: 'jenkins-controller-nodegroup-v2',
       nodeRole: this.controllerNodeRole.roleArn,
       
       // Use launch template
@@ -240,13 +240,13 @@ dnf install -y nfs-utils
       // Requirement 4.3: Capacity type of "SPOT" with on-demand instances as fallback
       capacityType: 'SPOT',
       
-      // Configure scaling: min 0, max 10, desired 0
-      // Updated to allow scaling to zero for cost optimization when idle
-      // Autoscaler will provision nodes (2-5 min) when Jenkins jobs are queued
+      // Configure scaling: min 1, max 10, desired 1
+      // Start with 1 agent node to allow seed job to run immediately
+      // Autoscaler will provision additional nodes (2-5 min) when more Jenkins jobs are queued
       scalingConfig: {
-        minSize: 0,
+        minSize: 1,
         maxSize: 10,
-        desiredSize: 0,
+        desiredSize: 1,
       },
       
       // Add labels to identify agent nodes

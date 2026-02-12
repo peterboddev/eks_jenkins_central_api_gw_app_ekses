@@ -77,6 +77,31 @@ data:
           - name: "Default"
             home: "git"
     
+    # Jobs configuration - create seed job automatically
+    jobs:
+      - script: >
+          job('seed-job') {
+            description('Seed job that creates all other Jenkins jobs from Job DSL scripts in Git')
+            scm {
+              git {
+                remote {
+                  url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
+                }
+                branch('*/main')
+              }
+            }
+            triggers {
+              scm('H/5 * * * *')
+            }
+            steps {
+              dsl {
+                external('jenkins-jobs/seed-job.groovy')
+                removeAction('DELETE')
+                removeViewAction('DELETE')
+              }
+            }
+          }
+    
     # Unclassified settings
     unclassified:
       location:
@@ -96,39 +121,4 @@ data:
                 scm:
                   git:
                     remote: "https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git"
-    
-    # Job DSL seed job configuration
-    jobs:
-      - script: >
-          job('seed-job') {
-            description('Seed job that creates all other Jenkins jobs from Job DSL scripts in Git')
-            
-            scm {
-              git {
-                remote {
-                  url('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses.git')
-                }
-                branches('*/main')
-              }
-            }
-            
-            triggers {
-              scm('H/5 * * * *')
-            }
-            
-            steps {
-              dsl {
-                external('jenkins-jobs/seed-job.groovy')
-                removeAction('DELETE')
-                removeViewAction('DELETE')
-                ignoreExisting(false)
-                ignoreMissingFiles(false)
-              }
-            }
-            
-            wrappers {
-              timestamps()
-            }
-          }
-      - script: >
-          queue('seed-job')
+

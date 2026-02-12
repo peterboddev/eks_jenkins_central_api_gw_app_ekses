@@ -18,10 +18,8 @@ metadata:
     # - kubernetes.io/cluster/jenkins-eks-cluster=shared
     # No need to specify subnet IDs - ALB controller will find them automatically
     
-    # Security: Restrict access to specific IP ranges
-    # Update this list with your organization's IP ranges
-    # Current: Allows AWS IP ranges and a sample IP
-    alb.ingress.kubernetes.io/inbound-cidrs: 0.0.0.0/0
+    # Security: Access controlled via security group (managed by CDK)
+    # Security group ID is injected by CDK during deployment
 spec:
   ingressClassName: alb
   rules:

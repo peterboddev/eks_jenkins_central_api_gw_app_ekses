@@ -18,9 +18,7 @@ export interface JenkinsAlbStackProps extends cdk.StackProps {
  * Jenkins ALB Security Group Stack
  * 
  * This stack creates a security group for the Jenkins Application Load Balancer
- * with restricted access to:
- * - AWS IP ranges (for AWS services)
- * - Specific home/office IP addresses
+ * with restricted access to specific IP addresses defined in security/alb-ip-whitelist.json
  * 
  * This provides an additional layer of security beyond the ingress annotation.
  */
@@ -74,45 +72,6 @@ export class JenkinsAlbStack extends cdk.Stack {
         ec2.Peer.ipv4(ip),
         ec2.Port.tcp(443),
         `Allow HTTPS from additional IP ${index + 1}`
-      );
-    });
-
-    // Allow HTTP/HTTPS from AWS IP ranges
-    // These are the primary AWS service IP ranges for us-west-2
-    const awsIpRanges = [
-      // CloudFront IP ranges (for potential CDN usage)
-      '13.32.0.0/15',
-      '13.35.0.0/16',
-      '52.84.0.0/15',
-      '54.192.0.0/16',
-      '54.230.0.0/16',
-      '99.84.0.0/16',
-      '143.204.0.0/16',
-      
-      // EC2 IP ranges for us-west-2
-      '35.80.0.0/12',
-      '44.224.0.0/11',
-      '52.32.0.0/11',
-      '54.68.0.0/14',
-      '54.184.0.0/13',
-      '54.200.0.0/13',
-      '54.212.0.0/15',
-      '54.214.0.0/16',
-      '54.244.0.0/16',
-      '54.245.0.0/16',
-    ];
-
-    awsIpRanges.forEach((cidr, index) => {
-      this.albSecurityGroup.addIngressRule(
-        ec2.Peer.ipv4(cidr),
-        ec2.Port.tcp(80),
-        `Allow HTTP from AWS IP range ${index + 1}`
-      );
-
-      this.albSecurityGroup.addIngressRule(
-        ec2.Peer.ipv4(cidr),
-        ec2.Port.tcp(443),
-        `Allow HTTPS from AWS IP range ${index + 1}`
       );
     });
 

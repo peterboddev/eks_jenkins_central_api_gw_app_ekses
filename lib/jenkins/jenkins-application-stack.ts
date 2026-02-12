@@ -708,11 +708,10 @@ export class JenkinsApplicationStack extends cdk.Stack {
     const agentConfigMap = props.cluster.addManifest('JenkinsAgentConfig', loadManifest('agent-pod-template-configmap.yaml'));
     agentConfigMap.node.addDependency(namespace);
 
-    // 6. Secrets sync job (depends on namespace)
-    const secretsJob = props.cluster.addManifest('JenkinsSecretsSync', loadManifest('secrets-sync-job.yaml'));
-    secretsJob.node.addDependency(namespace);
+    // Note: Secrets are managed manually via kubectl (jenkins-secrets with admin-password and github-webhook-secret)
+    // The secrets-sync job is too large for CDK's kubectl provider
 
-    // 7. StatefulSet (depends on ConfigMaps, PVC, ServiceAccount)
+    // 6. StatefulSet (depends on ConfigMaps, PVC, ServiceAccount)
     // Note: RBAC dependencies are handled separately since RBAC is multi-document
     const statefulSet = props.cluster.addManifest('JenkinsController', loadManifest('statefulset.yaml'));
     statefulSet.node.addDependency(pluginsConfigMap);
@@ -721,11 +720,11 @@ export class JenkinsApplicationStack extends cdk.Stack {
     statefulSet.node.addDependency(pvc);
     statefulSet.node.addDependency(jenkinsServiceAccount);
 
-    // 8. Service (depends on StatefulSet)
+    // 7. Service (depends on StatefulSet)
     const service = props.cluster.addManifest('JenkinsService', loadManifest('service.yaml'));
     service.node.addDependency(statefulSet);
 
-    // 9. Ingress (depends on Service and ALB Controller)
+    // 8. Ingress (depends on Service and ALB Controller)
     const ingressManifest = loadManifest('ingress.yaml');
     
     // Remove hardcoded subnet annotation - let ALB controller auto-discover
@@ -744,13 +743,19 @@ export class JenkinsApplicationStack extends cdk.Stack {
     ingressManifest.metadata.annotations['alb.ingress.kubernetes.io/load-balancer-name'] = 
       'jenkins-alb';
     
+    // Add label to track security group version (forces recreation when SG changes)
+    if (!ingressManifest.metadata.labels) {
+      ingressManifest.metadata.labels = {};
+    }
+    ingressManifest.metadata.labels['security-group-version'] = 'v2';
+    
     const ingress = props.cluster.addManifest('JenkinsIngress', ingressManifest);
     ingress.node.addDependency(service);
     ingress.node.addDependency(albServiceAccount);
 
     // Output deployment status
     new cdk.CfnOutput(this, 'JenkinsDeploymentStatusOutput', {
-      value: 'Jenkins deployed automatically via CDK (including Ingress with ALB)',
+      value: 'Jenkins deployed automatically via CDK - seed job created by JCasC on startup',
       description: 'Jenkins Kubernetes manifests deployed during stack creation',
     });
 
