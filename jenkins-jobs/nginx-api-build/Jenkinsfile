@@ -287,11 +287,28 @@ EOF
             steps {
                 container('kubectl') {
                     sh '''
-                        # Make test script executable
-                        chmod +x jenkins-jobs/nginx-api-build/test-endpoints.sh
+                        echo "🧪 Testing nginx-api endpoints within cluster..."
                         
-                        # Run endpoint tests
-                        ./jenkins-jobs/nginx-api-build/test-endpoints.sh
+                        # Get a pod name
+                        POD_NAME=$(kubectl get pods -n nginx-api -l app=nginx-api -o jsonpath='{.items[0].metadata.name}')
+                        echo "Testing against pod: $POD_NAME"
+                        
+                        # Test /health endpoint
+                        echo "📍 Testing GET /health..."
+                        kubectl exec -n nginx-api $POD_NAME -- wget -q -O- http://localhost:8080/health
+                        echo "✅ /health endpoint works"
+                        
+                        # Test /api/info endpoint
+                        echo "📍 Testing GET /api/info..."
+                        kubectl exec -n nginx-api $POD_NAME -- wget -q -O- http://localhost:8080/api/info
+                        echo "✅ /api/info endpoint works"
+                        
+                        # Test /api/test endpoint
+                        echo "📍 Testing GET /api/test..."
+                        kubectl exec -n nginx-api $POD_NAME -- wget -q -O- http://localhost:8080/api/test
+                        echo "✅ /api/test endpoint works"
+                        
+                        echo "🎉 All endpoint tests passed!"
                     '''
                 }
             }
