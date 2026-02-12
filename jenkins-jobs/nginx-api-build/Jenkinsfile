@@ -1,4 +1,6 @@
 pipeline {
+    // nginx-api-build pipeline - automated deployment to nginx-api-cluster
+    // Triggered by GitHub push events via webhook or SCM polling
     agent {
         kubernetes {
             yaml '''
