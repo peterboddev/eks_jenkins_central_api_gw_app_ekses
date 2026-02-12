@@ -2,7 +2,7 @@
 // This file defines all Jenkins jobs as code
 // Place this in a seed job that runs on Jenkins startup
 
-pipelineJob('nginx-api-build') {
+pipelineJob('nginx_api_build') {
     description('Build and deploy nginx-api application to nginx-api-cluster')
     
     properties {
@@ -29,7 +29,7 @@ pipelineJob('nginx-api-build') {
     }
 }
 
-pipelineJob('nginx-docker-build') {
+pipelineJob('nginx_docker_build') {
     description('Build nginx demo Docker image')
     
     triggers {
