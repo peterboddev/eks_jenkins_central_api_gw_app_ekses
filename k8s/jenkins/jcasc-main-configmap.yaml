@@ -110,11 +110,16 @@ data:
     # Unclassified settings
     unclassified:
       location:
-        url: "http://jenkins:8080/"
+        url: "http://jenkins-alb-652899647.us-west-2.elb.amazonaws.com/"
       
       # GitHub plugin configuration
       gitHubPluginConfig:
-        hookUrl: "http://jenkins:8080/github-webhook/"
+        hookUrl: "http://jenkins-alb-652899647.us-west-2.elb.amazonaws.com/github-webhook/"
+        configs:
+          - name: "GitHub"
+            apiUrl: "https://api.github.com"
+            credentialsId: "github-webhook-secret"
+            manageHooks: true
       
       # Global pipeline libraries (optional)
       globalLibraries:

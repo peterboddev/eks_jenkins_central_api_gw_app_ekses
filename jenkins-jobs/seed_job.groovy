@@ -33,6 +33,10 @@ pipelineJob('nginx_api_build') {
 pipelineJob('nginx_docker_build') {
     description('Build nginx demo Docker image')
     
+    properties {
+        githubProjectUrl('https://github.com/peterboddev/eks_jenkins_central_api_gw_app_ekses')
+    }
+    
     triggers {
         githubPush()
     }
