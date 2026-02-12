@@ -95,7 +95,7 @@ data:
             }
             steps {
               dsl {
-                external('jenkins-jobs/seed-job.groovy')
+                external('jenkins-jobs/seed_job.groovy')
                 removeAction('DELETE')
                 removeViewAction('DELETE')
               }
