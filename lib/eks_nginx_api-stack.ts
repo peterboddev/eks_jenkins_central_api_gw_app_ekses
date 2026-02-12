@@ -40,6 +40,11 @@ export interface NginxApiClusterStackProps extends cdk.StackProps {
    * Transit Gateway ID (optional - will create new if not provided)
    */
   transitGatewayId?: string;
+  
+  /**
+   * Jenkins controller IAM role ARN for cross-cluster access
+   */
+  jenkinsControllerRoleArn: string;
 }
 
 export class NginxApiClusterStack extends cdk.Stack {
@@ -112,6 +117,19 @@ export class NginxApiClusterStack extends cdk.Stack {
         eks.ClusterLoggingTypes.AUTHENTICATOR,
         eks.ClusterLoggingTypes.CONTROLLER_MANAGER,
       ],
+    });
+
+    // Grant Jenkins controller role access to this cluster
+    // This allows Jenkins pipelines to deploy to nginx-api-cluster
+    const jenkinsControllerRole = iam.Role.fromRoleArn(
+      this,
+      'JenkinsControllerRole',
+      props.jenkinsControllerRoleArn
+    );
+    
+    this.cluster.awsAuth.addRoleMapping(jenkinsControllerRole, {
+      groups: ['system:masters'],
+      username: 'jenkins-controller',
     });
 
     // Task 3.3: Output cluster configuration

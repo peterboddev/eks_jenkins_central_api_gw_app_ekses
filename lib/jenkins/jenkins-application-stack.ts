@@ -54,6 +54,7 @@ export interface JenkinsApplicationStackProps extends cdk.StackProps {
  */
 export class JenkinsApplicationStack extends cdk.Stack {
   public readonly artifactsBucket: s3.IBucket;
+  public readonly jenkinsControllerRoleArn: string;
 
   constructor(scope: Construct, id: string, props: JenkinsApplicationStackProps) {
     super(scope, id, props);
@@ -692,6 +693,9 @@ export class JenkinsApplicationStack extends cdk.Stack {
       policyName: 'JenkinsControllerInfrastructureDeploymentPolicy',
       document: jenkinsControllerPolicyDocument,
     }));
+    
+    // Export the role ARN for cross-cluster access
+    this.jenkinsControllerRoleArn = jenkinsServiceAccount.role.roleArn;
     
     // Make service account depend on namespace
     jenkinsServiceAccount.node.addDependency(namespace);

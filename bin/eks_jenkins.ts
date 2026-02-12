@@ -118,9 +118,11 @@ const nginxApiStack = new NginxApiClusterStack(app, 'NginxApiClusterStack', {
   vpc: nginxApiNetworkStack.vpc,
   jenkinsVpcId: jenkinsNetworkStack.vpcId,
   jenkinsAccountId: process.env.CDK_DEFAULT_ACCOUNT || '',
+  jenkinsControllerRoleArn: jenkinsApplicationStack.jenkinsControllerRoleArn,
 });
 
-// Nginx API stack depends on its network stack and Transit Gateway
+// Nginx API stack depends on its network stack, Transit Gateway, and Jenkins Application stack
 nginxApiStack.addDependency(nginxApiNetworkStack);
 nginxApiStack.addDependency(transitGatewayStack);
+nginxApiStack.addDependency(jenkinsApplicationStack);
 

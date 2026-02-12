@@ -157,15 +157,99 @@ spec:
                         # Update kubeconfig for nginx-api-cluster
                         aws eks update-kubeconfig --name nginx-api-cluster --region ${AWS_REGION}
                         
-                        # Check if deployment exists in nginx-api namespace
+                        # Check if namespace exists, create if not
+                        if ! kubectl get namespace nginx-api > /dev/null 2>&1; then
+                            echo "Creating nginx-api namespace..."
+                            kubectl create namespace nginx-api
+                        fi
+                        
+                        # Check if deployment exists
                         if kubectl get deployment nginx-api -n nginx-api > /dev/null 2>&1; then
                             echo "Deployment exists, updating image..."
                             kubectl set image deployment/nginx-api nginx-api=${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -n nginx-api
                             kubectl rollout status deployment/nginx-api -n nginx-api --timeout=5m
                         else
-                            echo "Deployment does not exist in nginx-api namespace."
-                            echo "This should have been created by CDK during NginxApiClusterStack deployment."
-                            exit 1
+                            echo "Deployment does not exist, creating new deployment..."
+                            
+                            # Create deployment
+                            cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-api
+  namespace: nginx-api
+  labels:
+    app: nginx-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx-api
+  template:
+    metadata:
+      labels:
+        app: nginx-api
+    spec:
+      containers:
+      - name: nginx-api
+        image: ${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: production
+        - name: CLUSTER_NAME
+          value: nginx-api-cluster
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+EOF
+                            
+                            # Create service if it doesn't exist
+                            if ! kubectl get service nginx-api -n nginx-api > /dev/null 2>&1; then
+                                echo "Creating service..."
+                                cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-api
+  namespace: nginx-api
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+EOF
+                            fi
+                            
+                            # Wait for deployment to be ready
+                            kubectl rollout status deployment/nginx-api -n nginx-api --timeout=5m
                         fi
                     '''
                 }
