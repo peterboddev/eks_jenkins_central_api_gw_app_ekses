@@ -157,13 +157,14 @@ spec:
                         # Update kubeconfig for nginx-api-cluster
                         aws eks update-kubeconfig --name nginx-api-cluster --region ${AWS_REGION}
                         
-                        # Check if deployment exists
-                        if kubectl get deployment nginx-api -n default > /dev/null 2>&1; then
+                        # Check if deployment exists in nginx-api namespace
+                        if kubectl get deployment nginx-api -n nginx-api > /dev/null 2>&1; then
                             echo "Deployment exists, updating image..."
-                            kubectl set image deployment/nginx-api nginx-api=${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -n default
-                            kubectl rollout status deployment/nginx-api -n default --timeout=5m
+                            kubectl set image deployment/nginx-api nginx-api=${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -n nginx-api
+                            kubectl rollout status deployment/nginx-api -n nginx-api --timeout=5m
                         else
-                            echo "Deployment does not exist. Please deploy using Helm first."
+                            echo "Deployment does not exist in nginx-api namespace."
+                            echo "This should have been created by CDK during NginxApiClusterStack deployment."
                             exit 1
                         fi
                     '''
@@ -176,13 +177,13 @@ spec:
                 container('kubectl') {
                     sh '''
                         # Wait for rollout to complete
-                        kubectl rollout status deployment/nginx-api -n default --timeout=5m
+                        kubectl rollout status deployment/nginx-api -n nginx-api --timeout=5m
                         
                         # Get pod status
-                        kubectl get pods -n default -l app=nginx-api
+                        kubectl get pods -n nginx-api -l app=nginx-api
                         
                         # Get service and ingress
-                        kubectl get svc,ingress -n default -l app=nginx-api
+                        kubectl get svc,ingress -n nginx-api -l app=nginx-api
                     '''
                 }
             }
