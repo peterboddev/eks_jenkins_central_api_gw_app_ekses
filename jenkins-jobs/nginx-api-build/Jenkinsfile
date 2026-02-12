@@ -151,8 +151,8 @@ spec:
             steps {
                 container('kubectl') {
                     sh '''
-                        # Install AWS CLI
-                        apt-get update && apt-get install -y awscli
+                        # Install AWS CLI (alpine uses apk, not apt-get)
+                        apk add --no-cache aws-cli
                         
                         # Update kubeconfig for nginx-api-cluster
                         aws eks update-kubeconfig --name nginx-api-cluster --region ${AWS_REGION}
