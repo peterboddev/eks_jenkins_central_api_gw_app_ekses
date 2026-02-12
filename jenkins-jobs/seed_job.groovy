@@ -1,6 +1,7 @@
 // Jenkins Job DSL Seed Job
 // This file defines all Jenkins jobs as code
 // Place this in a seed job that runs on Jenkins startup
+// Script security disabled via JCasC configuration
 
 pipelineJob('nginx_api_build') {
     description('Build and deploy nginx-api application to nginx-api-cluster')

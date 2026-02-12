@@ -102,6 +102,11 @@ data:
             }
           }
     
+    # Security settings
+    security:
+      globalJobDslSecurityConfiguration:
+        useScriptSecurity: false
+    
     # Unclassified settings
     unclassified:
       location:
