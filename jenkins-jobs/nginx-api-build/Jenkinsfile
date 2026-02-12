@@ -167,7 +167,17 @@ spec:
                         if kubectl get deployment nginx-api -n nginx-api > /dev/null 2>&1; then
                             echo "Deployment exists, updating image..."
                             kubectl set image deployment/nginx-api nginx-api=${ECR_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -n nginx-api
-                            kubectl rollout status deployment/nginx-api -n nginx-api --timeout=5m
+                            
+                            # Check pod status before waiting for rollout
+                            echo "Checking pod status..."
+                            kubectl get pods -n nginx-api -l app=nginx-api
+                            
+                            # Describe pods to see any issues
+                            echo "Pod details:"
+                            kubectl describe pods -n nginx-api -l app=nginx-api | tail -50
+                            
+                            # Wait for rollout with longer timeout
+                            kubectl rollout status deployment/nginx-api -n nginx-api --timeout=10m
                         else
                             echo "Deployment does not exist, creating new deployment..."
                             
@@ -249,7 +259,7 @@ EOF
                             fi
                             
                             # Wait for deployment to be ready
-                            kubectl rollout status deployment/nginx-api -n nginx-api --timeout=5m
+                            kubectl rollout status deployment/nginx-api -n nginx-api --timeout=10m
                         fi
                     '''
                 }
