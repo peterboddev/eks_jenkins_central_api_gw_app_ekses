@@ -17,6 +17,10 @@ spec:
     image: docker:24-dind
     securityContext:
       privileged: true
+    command:
+    - dockerd
+    - --host=unix:///var/run/docker.sock
+    - --host=tcp://0.0.0.0:2375
     volumeMounts:
     - name: docker-sock
       mountPath: /var/run
