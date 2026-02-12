@@ -11,7 +11,7 @@ metadata:
   labels:
     jenkins: agent
 spec:
-  serviceAccountName: jenkins-agent
+  serviceAccountName: jenkins-controller
   containers:
   - name: docker
     image: docker:24-dind
@@ -74,6 +74,9 @@ spec:
                     sh '''
                         cd nginx-api
                         
+                        # Install Node.js and npm
+                        apk add --no-cache nodejs npm
+                        
                         # Install dependencies for validation
                         npm install --only=dev js-yaml
                         
@@ -129,6 +132,9 @@ spec:
             steps {
                 container('kubectl') {
                     sh '''
+                        # Install AWS CLI
+                        apt-get update && apt-get install -y awscli
+                        
                         # Update kubeconfig for nginx-api-cluster
                         aws eks update-kubeconfig --name nginx-api-cluster --region ${AWS_REGION}
                         
