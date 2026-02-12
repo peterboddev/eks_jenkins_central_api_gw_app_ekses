@@ -2,6 +2,54 @@
 
 A complete, production-ready Jenkins CI/CD platform deployed on Amazon EKS with cost-optimized spot instances, persistent storage, and comprehensive monitoring.
 
+## 🚀 Quick Start
+
+### New to this project? Start here!
+
+**Complete Setup Guide**: See [SETUP_GUIDE.md](SETUP_GUIDE.md) for comprehensive step-by-step instructions.
+
+### Automated Bootstrap (Recommended)
+
+Run the bootstrap script to install all required tools and dependencies:
+
+**Windows (PowerShell)**:
+```powershell
+.\scripts\bootstrap-windows.ps1
+```
+
+**Linux/Mac (Bash)**:
+```bash
+chmod +x scripts/bootstrap-linux.sh
+./scripts/bootstrap-linux.sh
+```
+
+The bootstrap script will:
+- Install AWS CLI, Node.js, kubectl, Git, Helm, and AWS CDK
+- Configure AWS credentials
+- Install project dependencies
+- Bootstrap AWS CDK
+- Prepare kubectl layer
+- Configure ALB IP whitelist
+
+### Quick Deployment
+
+After bootstrapping, deploy the infrastructure:
+
+**Windows**:
+```powershell
+.\scripts\deploy-infrastructure.ps1
+```
+
+**Linux/Mac**:
+```bash
+chmod +x scripts/deploy-infrastructure.sh
+./scripts/deploy-infrastructure.sh
+```
+
+**Deployment time**: 30-40 minutes
+
+For detailed instructions, see [SETUP_GUIDE.md](SETUP_GUIDE.md).
+
 ## 🎯 Features
 
 - **High Availability**: Jenkins controller runs on on-demand instances
@@ -198,6 +246,14 @@ See [docs/guides/UPDATE_STACK_FOR_WEBHOOK.md](docs/guides/UPDATE_STACK_FOR_WEBHO
 See [QUICK_START.md](QUICK_START.md) for detailed instructions.
 
 ## 📚 Documentation
+
+**Complete Documentation Index**: See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for all documentation organized by topic and role.
+
+### Quick Links
+
+- **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Complete setup guide from scratch
+- **[CURRENT_STATUS.md](CURRENT_STATUS.md)** - Current infrastructure state
+- **[JENKINS_JOBS_AUTOMATION_COMPLETE.md](JENKINS_JOBS_AUTOMATION_COMPLETE.md)** - Jenkins jobs automation details
 
 ### Project Documentation
 - **[.kiro/task-summaries/PROJECT_HISTORY.md](.kiro/task-summaries/PROJECT_HISTORY.md)** - Complete project implementation history
