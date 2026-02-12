@@ -236,6 +236,9 @@ http {
             echo "✅ Docker image successfully built and pushed to ECR!"
             echo "Image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
             echo "Latest: ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest"
+            
+            // Trigger nginx_api_build job after successful Docker build
+            build job: 'nginx_api_build', wait: false
         }
         failure {
             echo "❌ Build failed. Check logs for details."
