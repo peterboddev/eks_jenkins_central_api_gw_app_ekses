@@ -14,6 +14,7 @@ RUN npm ci --only=production
 
 # Copy application code
 COPY app.js ./
+COPY handlers/ ./handlers/
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
