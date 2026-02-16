@@ -9,7 +9,6 @@ import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Construct } from 'constructs';
-import { buildJenkinsHelmValues } from './jenkins-helm-config';
 
 /**
  * Jenkins Application Stack Props
@@ -708,49 +707,6 @@ export class JenkinsApplicationStack extends cdk.Stack {
       exportName: 'JenkinsEksServiceAccountRoleArn',
     });
 
-    // ========================================
-    // HELM CHART DEPLOYMENT
-    // ========================================
-    // Deploy Jenkins using the official Helm chart
-    // This replaces the individual manifest files with a single Helm chart
-    // Following deployment philosophy: everything via CDK, no manual steps
-    
-    // Build Helm values configuration
-    const helmValues = buildJenkinsHelmValues({
-      albSecurityGroupId: props.albSecurityGroup.securityGroupId,
-      region: this.region,
-    });
-    
-    // Deploy Jenkins Helm chart
-    const jenkinsHelmChart = props.cluster.addHelmChart('JenkinsHelmChart', {
-      chart: 'jenkins',
-      repository: 'https://charts.jenkins.io',
-      namespace: 'jenkins',
-      createNamespace: true,
-      version: '5.7.0',  // Pin to specific version for stability
-      values: helmValues,
-    });
-    
-    // Set dependencies - Helm chart depends on ServiceAccount and ALB Controller
-    jenkinsHelmChart.node.addDependency(jenkinsServiceAccount);
-    jenkinsHelmChart.node.addDependency(albServiceAccount);
-    jenkinsHelmChart.node.addDependency(namespace);
-    
-    // Output Helm deployment status
-    new cdk.CfnOutput(this, 'JenkinsHelmChartOutput', {
-      value: 'Jenkins deployed via Helm chart - seed job created automatically by JCasC',
-      description: 'Jenkins Helm chart deployment status',
-    });
-
-    // ========================================
-    // OLD MANIFEST-BASED DEPLOYMENT (COMMENTED OUT)
-    // ========================================
-    // The code below is the old manifest-based deployment
-    // It's commented out but kept for reference during migration
-    // Once migration is verified, this can be removed
-    
-    /*
-
     // 3. RBAC (depends on ServiceAccount)
     // RBAC file contains multiple documents, so we need to add them separately
     const rbacManifests = loadManifest('rbac.yaml');
@@ -825,9 +781,6 @@ export class JenkinsApplicationStack extends cdk.Stack {
       value: 'Jenkins deployed automatically via CDK - seed job created by JCasC on startup',
       description: 'Jenkins Kubernetes manifests deployed during stack creation',
     });
-    */
-    
-    // End of old manifest-based deployment code
 
     new cdk.CfnOutput(this, 'EfsNfsServerOutput', {
       value: props.efsFileSystem.fileSystemId + '.efs.' + this.region + '.amazonaws.com',
