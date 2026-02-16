@@ -5,7 +5,7 @@
     "eks_jenkins": "bin/eks_jenkins.js"
   },
   "scripts": {
-    "prepare-kubectl-layer": "node scripts/prepare-kubectl-layer.js",
+    "prepare-kubectl-layer": "node scripts/prepare-kubectl-helm-layer.js",
     "prebuild": "npm run prepare-kubectl-layer",
     "build": "tsc",
     "watch": "tsc -w",

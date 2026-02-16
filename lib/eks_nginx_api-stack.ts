@@ -90,16 +90,16 @@ export class NginxApiClusterStack extends cdk.Stack {
     );
 
     // Create EKS cluster
-    // Use a minimal kubectl layer - CDK will provision the actual kubectl functionality
-    const kubectlLayer = new lambda.LayerVersion(this, 'KubectlLayer', {
-      code: lambda.Code.fromAsset('nginx-api/tmp/kubectl-layer.zip'),
+    // Use combined kubectl+helm layer for Kubernetes operations and Helm chart deployments
+    const kubectlHelmLayer = new lambda.LayerVersion(this, 'KubectlHelmLayer', {
+      code: lambda.Code.fromAsset('nginx-api/tmp/kubectl-helm-layer.zip'),
       compatibleRuntimes: [
         lambda.Runtime.PYTHON_3_13,
         lambda.Runtime.PYTHON_3_12,
         lambda.Runtime.PYTHON_3_11,
         lambda.Runtime.PROVIDED_AL2023,
       ],
-      description: 'kubectl layer placeholder',
+      description: 'kubectl and helm binaries for Kubernetes operations and Helm chart deployments',
     });
 
     this.cluster = new eks.Cluster(this, 'Cluster', {
@@ -111,7 +111,7 @@ export class NginxApiClusterStack extends cdk.Stack {
       securityGroup: clusterSecurityGroup,
       endpointAccess: eks.EndpointAccess.PUBLIC_AND_PRIVATE,
       defaultCapacity: 0, // No managed node groups - using Karpenter
-      kubectlLayer: kubectlLayer,
+      kubectlLayer: kubectlHelmLayer,
       clusterLogging: [
         eks.ClusterLoggingTypes.AUDIT,
         eks.ClusterLoggingTypes.AUTHENTICATOR,

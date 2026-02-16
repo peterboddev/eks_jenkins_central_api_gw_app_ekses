@@ -43,12 +43,27 @@ export interface JenkinsEksClusterStackProps extends cdk.StackProps {
 export class JenkinsEksClusterStack extends cdk.Stack {
   public readonly cluster: eks.Cluster;
   public readonly vpc: ec2.IVpc;
+  public readonly helmLayer: lambda.ILayerVersion;
 
   constructor(scope: Construct, id: string, props: JenkinsEksClusterStackProps) {
     super(scope, id, props);
     
     // Store VPC reference
     this.vpc = props.vpc;
+
+    // Create combined kubectl+helm layer for Kubernetes operations and Helm chart deployments
+    // This layer contains both kubectl and helm binaries needed by CDK
+    const kubectlHelmLayer = new lambda.LayerVersion(this, 'KubectlHelmLayer', {
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../nginx-api/tmp/kubectl-helm-layer.zip')),
+      compatibleRuntimes: [
+        lambda.Runtime.PYTHON_3_12,
+        lambda.Runtime.PYTHON_3_13,
+      ],
+      description: 'kubectl and helm binaries for Kubernetes operations and Helm chart deployments',
+    });
+
+    // Store helm layer reference for use by application stack
+    this.helmLayer = kubectlHelmLayer;
 
     // Create EKS cluster with Kubernetes version 1.32
     // Configure cluster in private subnets across 2 availability zones
@@ -81,15 +96,8 @@ export class JenkinsEksClusterStack extends cdk.Stack {
         eks.ClusterLoggingTypes.SCHEDULER,
       ],
       
-      // Use custom kubectl layer
-      kubectlLayer: new lambda.LayerVersion(this, 'KubectlLayer', {
-        code: lambda.Code.fromAsset(path.join(__dirname, '../../nginx-api/tmp/kubectl-layer.zip')),
-        compatibleRuntimes: [
-          lambda.Runtime.PYTHON_3_12,
-          lambda.Runtime.PYTHON_3_13,
-        ],
-        description: 'kubectl binary for Kubernetes API access',
-      }),
+      // Use combined kubectl+helm layer
+      kubectlLayer: kubectlHelmLayer,
     });
 
     // Output EKS cluster information for reference
