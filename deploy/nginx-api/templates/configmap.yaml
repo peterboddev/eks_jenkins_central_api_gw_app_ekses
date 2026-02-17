@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nginx-api.fullname" . }}
+  labels:
+    {{- include "nginx-api.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        server {
+            listen 8080;
+            
+            location /health {
+                default_type application/json;
+                return 200 '{"status":"healthy","timestamp":"$time_iso8601"}';
+            }
+            
+            location /api/info {
+                default_type application/json;
+                return 200 '{"app":"nginx-api","version":"1.0.0","cluster":"{{ .Values.clusterName }}"}';
+            }
+            
+            location /api/echo {
+                if ($request_method != POST) {
+                    return 405 '{"error":"Method not allowed"}';
+                }
+                proxy_pass http://127.0.0.1:8081;
+                proxy_set_header Content-Type $content_type;
+            }
+        }
+        
+        server {
+            listen 8081;
+            location / {
+                default_type $content_type;
+                return 200 $request_body;
+            }
+        }
+    }

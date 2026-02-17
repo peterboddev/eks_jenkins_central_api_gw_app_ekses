@@ -1,0 +1,31 @@
+# Values for AWS Load Balancer Controller on Nginx-API EKS cluster
+# This file configures the ALB controller to work with the nginx-api-cluster
+
+aws-load-balancer-controller:
+  clusterName: nginx-api-cluster
+  
+  # Service account is created by CDK with IRSA
+  # Do not create it here to avoid conflicts
+  serviceAccount:
+    create: false
+    name: aws-load-balancer-controller
+  
+  # AWS region
+  region: us-west-2
+  
+  # VPC ID for the Nginx-API cluster
+  vpcId: vpc-011e32b5c2d161aa0
+  
+  # Resource limits
+  resources:
+    limits:
+      cpu: 200m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  
+  # Enable metrics for monitoring
+  enableShield: false
+  enableWaf: false
+  enableWafv2: false

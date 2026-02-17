@@ -9,6 +9,8 @@ import { JenkinsEksClusterStack } from '../lib/jenkins/jenkins-eks-cluster-stack
 import { JenkinsEksNodeGroupsStack } from '../lib/jenkins/jenkins-eks-nodegroups-stack';
 import { JenkinsAlbStack } from '../lib/jenkins/jenkins-alb-stack';
 import { JenkinsApplicationStack } from '../lib/jenkins/jenkins-application-stack';
+import { JenkinsArgoCDStack } from '../lib/jenkins/jenkins-argocd-stack';
+import { NginxApiArgoCDStack } from '../lib/nginx-api-argocd-stack';
 
 const app = new cdk.App();
 
@@ -111,7 +113,19 @@ jenkinsApplicationStack.addDependency(jenkinsEksClusterStack);
 jenkinsApplicationStack.addDependency(jenkinsStorageStack);
 jenkinsApplicationStack.addDependency(jenkinsAlbStack);
 
-// 9. Deploy Nginx API cluster (uses Nginx API VPC)
+// 9. Deploy Jenkins ArgoCD Bootstrap Stack (GitOps)
+const jenkinsArgoCDStack = new JenkinsArgoCDStack(app, 'JenkinsArgoCDStack', {
+  env,
+  description: 'ArgoCD GitOps bootstrap for Jenkins cluster',
+  cluster: jenkinsEksClusterStack.cluster,
+  albSecurityGroup: jenkinsAlbStack.albSecurityGroup,
+});
+
+// ArgoCD stack depends on cluster and ALB stacks
+jenkinsArgoCDStack.addDependency(jenkinsEksClusterStack);
+jenkinsArgoCDStack.addDependency(jenkinsAlbStack);
+
+// 10. Deploy Nginx API cluster (uses Nginx API VPC)
 const nginxApiStack = new NginxApiClusterStack(app, 'NginxApiClusterStack', {
   env,
   description: 'Nginx REST API cluster on Amazon EKS with Karpenter and API Gateway',
@@ -125,4 +139,15 @@ const nginxApiStack = new NginxApiClusterStack(app, 'NginxApiClusterStack', {
 nginxApiStack.addDependency(nginxApiNetworkStack);
 nginxApiStack.addDependency(transitGatewayStack);
 nginxApiStack.addDependency(jenkinsApplicationStack);
+
+// 11. Deploy Nginx API ArgoCD Bootstrap Stack (GitOps)
+const nginxApiArgoCDStack = new NginxApiArgoCDStack(app, 'NginxApiArgoCDStack', {
+  env,
+  description: 'ArgoCD GitOps bootstrap for nginx-api cluster',
+  cluster: nginxApiStack.cluster,
+  albSecurityGroup: nginxApiStack.albSecurityGroup,
+});
+
+// ArgoCD stack depends on nginx-api cluster stack
+nginxApiArgoCDStack.addDependency(nginxApiStack);
 

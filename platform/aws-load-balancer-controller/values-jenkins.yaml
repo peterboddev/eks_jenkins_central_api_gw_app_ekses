@@ -1,0 +1,31 @@
+# Values for AWS Load Balancer Controller on Jenkins EKS cluster
+# This file configures the ALB controller to work with the jenkins-eks-cluster
+
+aws-load-balancer-controller:
+  clusterName: jenkins-eks-cluster
+  
+  # Service account is created by CDK with IRSA
+  # Do not create it here to avoid conflicts
+  serviceAccount:
+    create: false
+    name: aws-load-balancer-controller
+  
+  # AWS region
+  region: us-west-2
+  
+  # VPC ID for the Jenkins cluster
+  vpcId: vpc-0e0e3b96921d785ba
+  
+  # Resource limits
+  resources:
+    limits:
+      cpu: 200m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  
+  # Enable metrics for monitoring
+  enableShield: false
+  enableWaf: false
+  enableWafv2: false

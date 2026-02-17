@@ -51,6 +51,7 @@ export class NginxApiClusterStack extends cdk.Stack {
   public readonly vpc: ec2.IVpc;
   public readonly cluster: eks.Cluster;
   public readonly apiGatewayUrl: string;
+  public readonly albSecurityGroup: ec2.ISecurityGroup;
 
   constructor(scope: Construct, id: string, props: NginxApiClusterStackProps) {
     super(scope, id, props);
@@ -132,6 +133,16 @@ export class NginxApiClusterStack extends cdk.Stack {
       username: 'jenkins-controller',
     });
 
+    // Grant cluster admin access to IAM user
+    // This allows kubectl access for cluster management
+    this.cluster.awsAuth.addUserMapping(
+      iam.User.fromUserName(this, 'AdminUser', 'piotrbod'),
+      {
+        groups: ['system:masters'],
+        username: 'piotrbod',
+      }
+    );
+
     // Task 3.3: Output cluster configuration
     // Requirements: 2.5
     
@@ -176,6 +187,9 @@ export class NginxApiClusterStack extends cdk.Stack {
       ec2.Port.tcp(443),
       'Allow HTTPS from API Gateway'
     );
+    
+    // Store reference for ArgoCD stack
+    this.albSecurityGroup = albSecurityGroup;
 
     new cdk.CfnOutput(this, 'ALBSecurityGroupId', {
       value: albSecurityGroup.securityGroupId,
