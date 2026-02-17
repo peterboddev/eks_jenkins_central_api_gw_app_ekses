@@ -151,7 +151,7 @@ This plan migrates Kubernetes workload deployment from CDK manifests to ArgoCD +
     - Enable automated sync with prune and selfHeal
     - _Requirements: 6.6, 7.4, 7.5-7.9_
 
-- [ ] 10. Deploy nginx-api via ArgoCD
+- [x] 10. Deploy nginx-api via ArgoCD
   - Update kubeconfig for nginx-api cluster
   - Apply ArgoCD Application: kubectl apply -f argocd-apps/nginx-api-app.yaml
   - Wait for ArgoCD to sync
