@@ -2,7 +2,7 @@ replicaCount: 3
 
 image:
   repository: 450683699755.dkr.ecr.us-west-2.amazonaws.com/nginx-api
-  tag: latest
+  tag: "28"  # Using known working build (latest has missing application code)
   pullPolicy: IfNotPresent
 
 # AWS Configuration
